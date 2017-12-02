@@ -15,14 +15,33 @@ class Round:
 
 	@staticmethod
 	def getByGame(game_id):
-		return DB.getList("SELECT *, (SELECT count(*) FROM word WHERE round_id = round.id) words FROM round WHERE game_id=%(game_id)s" % dict(game_id=game_id))
+		roundList = DB.getList("""
+			SELECT *,
+			(
+				SELECT count(*)
+				FROM word
+				WHERE round_id = round.id
+			) words
+			FROM round
+			WHERE game_id=%(game_id)s
+		""" % dict(game_id=game_id))
+		for _round in roundList:
+			players = DB.getList("""
+				SELECT name, count(*) count
+				FROM word
+				JOIN player ON (player.id = player_id)
+				WHERE round_id = %(round_id)s
+				GROUP by player_id
+			""", dict(round_id=_round['id']))
+			_round['players'] = {w['name']: w['count'] for w in players}
+		return roundList
 
 	@staticmethod
 	def start():
 		pass
 
 	@staticmethod
-	def getWordsList():
+	def getWordsList(round_id):
 		pass
 
 	@staticmethod

@@ -10,9 +10,7 @@ from game.round import Round
 class Base_Game:
 
 	ERROR_CODES = {
-		"INNER_ERROR": "Ебануться! Что-то пошло не так. Я не смог сохранить твоё словцо. Не делай так больше!",
-		"EMPTY_WORD": "Словцо-то введи, горемыка.",
-		"TOO_MANY_WORDS": "Ты что мне суешь, пёс! Сишком много словцов за раз. Можно только %d!",
+		"INNER_ERROR": "Ебануться! Что-то пошло не так. Я не смог сохранить твоё словцо. Не делай так больше!"
 	}
 
 	_WORDS_LIMIT = 1
@@ -23,22 +21,15 @@ class Base_Game:
 	}
 
 	def addWord(self, update):
-		errorMsg = None
-		wordsList = re.sub("\s{2,}", " ", update.message.text).strip().split(" ")
-		if not wordsList:
-			errorMsg = Base_Game.ERROR_CODES['EMPTY_WORD']
-		if len(wordsList) > Base_Game._WORDS_LIMIT:
-			errorMsg = Base_Game.ERROR_CODES['TOO_MANY_WORDS'] % self._WORDS_LIMIT
-		if errorMsg:
-			return errorMsg
-		successMsg = ""
 		game_id, round_id = self._getId()
-		player_id = Player.getId(update.message.chat)
-		for word in wordsList:
-			params = dict(word=word.lower(), player_id=player_id, game_id=game_id, round_id=round_id)
-			response = Word.add(params, self._WORDS_LIMIT, self._WORD_MIN_LENGTH)
-			successMsg += "%s\n" % response
-		return successMsg.strip()
+		return Word.add(dict(
+			word=update.message.text,
+			player_id=Player.getId(update.message.chat),
+			game_id=game_id,
+			round_id=round_id),
+			self._WORDS_LIMIT,
+			self._WORD_MIN_LENGTH
+		)
 
 	def updateWord(self, oldWord, newWord, update):
 		game_id, round_id = Base_Game._getId()
@@ -62,6 +53,8 @@ class Base_Game:
 		game['lastRoundNumber'] = game['rounds'][-1]['number']
 		game['lastRoundCreateDate'] = game['rounds'][-1]['createDate']
 		game['lastRoundWords'] = game['rounds'][-1]['words']
+		game['lastRoundPlayers'] = game['rounds'][-1]['players']
+		game['lastRoundPlayersPlain'] = "\n".join(["%s: %s" % (p, str(w)) for p, w in game['lastRoundPlayers'].items()]) if game['lastRoundPlayers'] else ""
 		return game
 
 	@staticmethod

@@ -31,12 +31,7 @@ def start(bot, update):
 
 def catchWord(bot, update):
 	logging.info(update)
-	try:
-		response = game.addWord(update)
-	except Exception as err:
-		response = Game.ERROR_CODES['INNER_ERROR']
-		# logging.critical("Exception: " + str(err), "Traceback: %s" % traceback.format_exc())
-		raise
+	response = game.addWord(update)
 	sendMsg(bot, update, response)
 
 
@@ -67,7 +62,7 @@ def showMyWordsPerRound(bot, update, args):
 def updateMyWord(bot, update, args):
 	logging.info(update)
 	if len(args) != 2:
-		response = "Слева - старое словоцо, справа - новое словцо. ДЕЛАЙ ТАК!"
+		response = "Слева - старое словцо, справа - новое словцо. ДЕЛАЙ ТАК!"
 		sendMsg(bot, update, response)
 		return
 	response = game.updateWord(args[0], args[1], update)
@@ -104,11 +99,13 @@ def getGameInfo(bot, update, args):
 	Всего предложено: %(words)s слов
 	Всего инициировано: %(roundsCount)s раундов. Номера раундов: %(roundsNumber)s
 	Последний раунд: %(lastRoundNumber)s, запущенный в %(lastRoundCreateDate)s. В нём предложено %(lastRoundWords)s слов
+	Участники последнего раунда:\n%(lastRoundPlayersPlain)s
 	""" % gameInfo
 	sendMsg(bot, update, response)
 
 
 def sendMsg(bot, update, msg):
+	msg = re.sub(r"(?<=\n)[\s]+", "", msg)
 	bot.send_message(chat_id=update.message.chat_id, text=msg)
 
 [

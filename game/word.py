@@ -8,29 +8,31 @@ class Word:
 		"TOO_SHORT_WORD": "Ха! Вы только посмотрите! Какое маленькое, жалкое и скукоженное словцо! Минимальная длина словца - %d букв.",
 		"INVALID_WORD": "Это не похоже на словцо! Не похоже! Словцо должно содержать только русские буквы, невежа.",
 		"NOT_IN_TIME_WORD": "Ну ты и проныра! Ты уже втюхнул максимальное количество (%d) своих жалких словцов в этом раунде!",
-		"EXISTED_WORD_NEW": "Ах ты ж маленькая слабоумная сковорода. Такое словцо уже предлагали!"
+		"EXISTED_WORD_NEW": "Ах ты ж маленькая слабоумная сковорода. Такое словцо уже предлагали!",
+		"EMPTY_WORD": "Словцо-то введи, горемыка."
 	}
 
 	@staticmethod
 	def add(params, wordsLimit, wordMinLength):
+		params['word'] = params['word'].strip().lower()
 		wordsForToday = DB.getList("""
 			SELECT *
 			FROM word
 			WHERE player_id = %(player_id)s AND DATE(createDate) = DATE(NOW()) AND game_id = %(game_id)s AND round_id = %(round_id)s
 		""", params)
 		if len(wordsForToday) >= wordsLimit:
-			return False, Word.ERROR_CODES['NOT_IN_TIME_WORD'] % wordsLimit
+			return Word.ERROR_CODES['NOT_IN_TIME_WORD'] % wordsLimit
 		status, response = Word.isWordValid(params['word'], wordMinLength)
 		if not status:
 			return response
-		addedWord = DB.execute("INSERT INTO word SET word = %(word)s, player_id = %(player_id)s, game_id = %(game_id)s, round_id = %(round_id)s", params)
+		DB.execute("INSERT INTO word SET word = %(word)s, player_id = %(player_id)s, game_id = %(game_id)s, round_id = %(round_id)s", params)
 		wordsForToday = DB.getList("SELECT * FROM word WHERE player_id = %(player_id)s AND DATE(createDate) = DATE(NOW())", params)
 		additionalMsg = ""
 		if len(wordsForToday) == wordsLimit:
 			additionalMsg = " У тебя больше не осталось слов на сегодня."
 		if len(wordsForToday) < wordsLimit:
 			additionalMsg = " Ты можешь предложить ещё %d смешных словца" % (wordsLimit - len(wordsForToday))
-		return True, ("Твоё жалкое словцо \"%s\" принято, свинюшка!" % params['word']) + additionalMsg, addedWord.lastrowid
+		return "Твоё жалкое словцо \"%s\" принято, свинюшка! %s" % (params['word'], additionalMsg)
 
 	@staticmethod
 	def getListByGameId(game_id, player_id=None, fullAccess=False):
@@ -45,7 +47,8 @@ class Word:
 	def getListByRoundId(round_id, player_id=None, fullAccess=False):
 		condition = "player_id = %(player_id)s" if player_id else "status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
-		SELECT * FROM word
+		SELECT *
+		FROM word
 		JOIN round ON (round.id = word.round_id)
 		WHERE word.round_id = %(round_id)s AND
 		""" + condition, dict(round_id=round_id, player_id=player_id))
@@ -77,7 +80,9 @@ class Word:
 	@staticmethod
 	def isWordValid(word, wordMinLength):
 		errorMsg = None
-		if Word._isWordExist(word):
+		if not word:
+			errorMsg = Word.ERROR_CODES['EMPTY_WORD']
+		elif Word._isWordExist(word):
 			errorMsg = Word.ERROR_CODES['EXISTED_WORD_NEW']
 		elif not re.match(r"^[А-яё]+$", word):
 			errorMsg = Word.ERROR_CODES['INVALID_WORD']
