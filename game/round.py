@@ -10,8 +10,8 @@ class Round:
 		return Round._set(game_id, 1) if not _round else _round['id'] if _round['status'] == 'in progress' else Round._init(game_id)
 
 	@staticmethod
-	def get(round_id=None):
-		return DB.getList("SELECT * FROM round WHERE round_id=%(round_id)s" % dict(round_id=round_id))
+	def get(round_id):
+		return DB.getOne("SELECT * FROM round WHERE id=%(round_id)s" % dict(round_id=round_id))
 
 	@staticmethod
 	def getByGame(game_id):

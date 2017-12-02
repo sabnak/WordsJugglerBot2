@@ -13,8 +13,7 @@ class Base_Game:
 		"INNER_ERROR": "Ебануться! Что-то пошло не так. Я не смог сохранить твоё словцо. Не делай так больше!"
 	}
 
-	_WORDS_LIMIT = 1
-	_WORD_MIN_LENGTH = 5
+	_ROUNDS = dict()
 
 	_DICTIONARIES = {
 		"ushakov": r"f:\WordsJugglerBot\dictionaries\ushakov_reb.txt"
@@ -22,19 +21,21 @@ class Base_Game:
 
 	def addWord(self, update):
 		game_id, round_id = self._getId()
+		roundNumber = Round.get(round_id)['number']
 		return Word.add(dict(
 			word=update.message.text,
 			player_id=Player.getId(update.message.chat),
 			game_id=game_id,
 			round_id=round_id),
-			self._WORDS_LIMIT,
-			self._WORD_MIN_LENGTH
+			self._ROUNDS[roundNumber]['minWordsPerPlayer'],
+			self._ROUNDS[roundNumber]['minWordLength']
 		)
 
 	def updateWord(self, oldWord, newWord, update):
 		game_id, round_id = Base_Game._getId()
+		roundNumber = Round.get(round_id)['number']
 		player_id = Player.getId(update.message.chat)
-		return Word.update(oldWord=oldWord, newWord=newWord, player_id=player_id, round_id=round_id, wordMinLength=self._WORD_MIN_LENGTH)
+		return Word.update(oldWord=oldWord, newWord=newWord, player_id=player_id, round_id=round_id, wordMinLength=self._ROUNDS[roundNumber]['minWordLength'])
 
 	@staticmethod
 	def get(game_id=None):
@@ -70,13 +71,13 @@ class Base_Game:
 		game_id, round_id = Base_Game._getId(game_id)
 		return Word.getListByGameId(game_id, player_id, fullAccess)
 
-	def getRandom(self, dictionaryName):
+	def getRandom(self, dictionaryName, minLength=5):
 		attemptsLimit = 10
 		attempt = 1
 		while attempt <= attemptsLimit:
 			attempt += 1
 			word = random.choice(list(open(self._DICTIONARIES[dictionaryName])))
-			if Word.isWordValid(word, self._WORD_MIN_LENGTH)[0]:
+			if Word.isWordValid(word, minLength)[0]:
 				return word
 		return None
 

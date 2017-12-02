@@ -1,12 +1,15 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
-import traceback
 from game.typeA import Game
-from game.word import Word
 import re
+import configparser
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
-updater = Updater(token='469542656:AAEIe3n3ir5oFpW1ce99u9EDk60tRzAC66Y')
+
+config = configparser.ConfigParser()
+config.read("./config/local.cfg")
+
+updater = Updater(token=config['TELEGRAM']['token'])
 dispatcher = updater.dispatcher
 game = Game()
 
@@ -128,4 +131,5 @@ def sendMsg(bot, update, msg):
 
 
 if __name__ == "__main__":
-	updater.start_polling()
+	pass
+	# updater.start_polling()
