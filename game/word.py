@@ -45,12 +45,13 @@ class Word:
 
 	@staticmethod
 	def getListByRoundId(round_id, player_id=None, fullAccess=False):
-		condition = "player_id = %(player_id)s" if player_id else "status = 'ended'" if not fullAccess else ""
+		condition = " AND player_id = %(player_id)s" if player_id else " AND status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
 		SELECT *
 		FROM word
 		JOIN round ON (round.id = word.round_id)
-		WHERE word.round_id = %(round_id)s AND
+		JOIN player ON (player.id = word.player_id)
+		WHERE word.round_id = %(round_id)s
 		""" + condition, dict(round_id=round_id, player_id=player_id))
 
 	@staticmethod
@@ -63,7 +64,7 @@ class Word:
 			SELECT *
 			FROM word
 			JOIN round ON (round.id = round_id)
-			WHERE word = %(oldWord)s AND player_id = %(player_id)s AND status='in progress'
+			WHERE word = %(oldWord)s AND player_id = %(player_id)s AND status='preparation'
 		""", params):
 			return "У тебя нет такого словца в последнем раунде или он уже завершён, дурында!"
 		status, response = Word.isWordValid(word=params['newWord'], wordMinLength=wordMinLength)
@@ -73,7 +74,7 @@ class Word:
 			UPDATE word
 			JOIN round ON (round.id = round_id)
 			SET word = %(newWord)s
-			WHERE word = %(oldWord)s AND player_id = %(player_id)s AND status='in progress'
+			WHERE word = %(oldWord)s AND player_id = %(player_id)s AND status='preparation'
 		""", params).rowcount
 		return "Хм... Я не смог обновить словцо. Интересно почему?" if not affectedRows else "Словцо успешно обновлено. Надеюсь, оно было получше прежнего"
 

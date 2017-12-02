@@ -1,5 +1,5 @@
 from game.base import Base_Game
-from collections import OrderedDict
+from game.round import Round
 
 
 class Game(Base_Game):
@@ -12,11 +12,15 @@ class Game(Base_Game):
 			minWordsPerPlayer=1,
 			maxWordsPerPlayer=1,
 			minWordLength=5,
-			maxWordLength=15
+			maxWordLength=15,
+			maxWeightPerWord=4,
+			maxWeightPerRound=8,
+			minWeightPerRound=8,
+			minPlayer=2
 		)
 	}
 
-	@staticmethod
-	def _start():
+	def start(self):
 		pass
+
 

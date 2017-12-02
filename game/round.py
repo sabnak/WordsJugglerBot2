@@ -1,13 +1,13 @@
 from libs.dbAdapter import DB
 import logging
-
+from game.word import Word
 
 class Round:
 
 	@staticmethod
 	def getId(game_id):
 		_round = DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s ORDER BY number DESC LIMIT 1", dict(game_id=game_id))
-		return Round._set(game_id, 1) if not _round else _round['id'] if _round['status'] == 'in progress' else Round._init(game_id)
+		return Round._set(game_id, 1) if not _round else _round['id'] if _round['status'] == 'preparation' else Round._init(game_id)
 
 	@staticmethod
 	def get(round_id):
@@ -37,12 +37,19 @@ class Round:
 		return roundList
 
 	@staticmethod
-	def start():
-		pass
+	def getWordsListByAuthor(round_id):
+		plainWorldsList = Word.getListByRoundId(round_id, fullAccess=True)
+		parsedWordsList = {}
+		for row in plainWorldsList:
+			if row['telegram_id'] not in parsedWordsList:
+				parsedWordsList[row['telegram_id']] = [row['name'], []]
+			parsedWordsList[row['telegram_id']][1].append(row['word'])
+		return parsedWordsList
 
 	@staticmethod
-	def getWordsList(round_id):
+	def _isRoundReadyToBegin(round_id):
 		pass
+		# if DB.getOne("SELECT * FROM round WHERE round_id = %(round_id)s ANS status = ''")
 
 	@staticmethod
 	def _init(game_id):

@@ -27,7 +27,7 @@ def start(bot, update):
 		/my_words_by_game, /wg, /си - твои словцы за текущую игру
 		/my_words_by_round, /wr, /ср - твои словцы за текущий раунд
 		/update, /u, /о - обнови своё словцо!
-		/get_random, /gr, /пс - случайное словцо. Вдохновись!
+		/random, /r, /пс - случайное словцо. Вдохновись!
 		"""
 	)
 
@@ -107,6 +107,16 @@ def getGameInfo(bot, update, args):
 	sendMsg(bot, update, response)
 
 
+def fight(bot, update):
+	logging.info(update)
+	game.start()
+
+
+def getCandidates(bot, update):
+	logging.info(update)
+	game.getCandidates()
+
+
 def sendMsg(bot, update, msg):
 	msg = re.sub(r"(?<=\n)[\s]+", "", msg)
 	bot.send_message(chat_id=update.message.chat_id, text=msg)
@@ -118,7 +128,9 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['my_words_by_game', 'wg', 'си'], showMyWordsPerGame, pass_args=True),
 		CommandHandler(['my_words_by_round', 'wr', 'ср'], showMyWordsPerRound, pass_args=True),
 		CommandHandler(['update', 'u', 'о'], updateMyWord, pass_args=True),
-		CommandHandler(['get_random', 'gr', 'пс'], getRandomWord, pass_args=False),
+		CommandHandler(['random', 'r', 'пс'], getRandomWord, pass_args=False),
+		CommandHandler(['fight', 'f', 'б'], fight, pass_args=False),
+		CommandHandler(['candidates', 'c', 'к'], getCandidates, pass_args=False),
 		MessageHandler(Filters.text, catchWord)
 	]
 ]
@@ -131,5 +143,4 @@ def sendMsg(bot, update, msg):
 
 
 if __name__ == "__main__":
-	pass
-	# updater.start_polling()
+	updater.start_polling()

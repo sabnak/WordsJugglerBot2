@@ -19,23 +19,29 @@ class Base_Game:
 		"ushakov": r"f:\WordsJugglerBot\dictionaries\ushakov_reb.txt"
 	}
 
+	game_id = None
+	round_id = None
+	roundNumber = None
+
+	def _refreshGameState(self):
+		self.game_id, self.round_id = self._getId()
+		self.roundNumber = Round.get(self.round_id)['number']
+
 	def addWord(self, update):
-		game_id, round_id = self._getId()
-		roundNumber = Round.get(round_id)['number']
+		self._refreshGameState()
 		return Word.add(dict(
 			word=update.message.text,
 			player_id=Player.getId(update.message.chat),
-			game_id=game_id,
-			round_id=round_id),
-			self._ROUNDS[roundNumber]['minWordsPerPlayer'],
-			self._ROUNDS[roundNumber]['minWordLength']
+			game_id=self.game_id,
+			round_id=self.round_id),
+			self._ROUNDS[self.roundNumber]['minWordsPerPlayer'],
+			self._ROUNDS[self.roundNumber]['minWordLength']
 		)
 
 	def updateWord(self, oldWord, newWord, update):
-		game_id, round_id = Base_Game._getId()
-		roundNumber = Round.get(round_id)['number']
+		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
-		return Word.update(oldWord=oldWord, newWord=newWord, player_id=player_id, round_id=round_id, wordMinLength=self._ROUNDS[roundNumber]['minWordLength'])
+		return Word.update(oldWord=oldWord, newWord=newWord, player_id=player_id, round_id=self.round_id, wordMinLength=self._ROUNDS[self.roundNumber]['minWordLength'])
 
 	@staticmethod
 	def get(game_id=None):
@@ -81,6 +87,11 @@ class Base_Game:
 				return word
 		return None
 
+	def getCandidates(self):
+		self._refreshGameState()
+		wordsListByAuthor = Word.getListByRoundId(self.round_id, fullAccess=True)
+		print(wordsListByAuthor)
+
 	@staticmethod
 	def _init():
 		game_id = DB.execute("INSERT INTO game SET createDate = NOW()").lastrowid
@@ -96,7 +107,6 @@ class Base_Game:
 		game_id = Base_Game._init() if not game else game['id']
 		return game_id, Round.getId(game_id)
 
-	@staticmethod
-	def _start():
+	def start(self):
 		raise NotImplementedError("Method must be override")
 
