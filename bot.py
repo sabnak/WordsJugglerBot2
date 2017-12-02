@@ -2,6 +2,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 import traceback
 from game.typeA import Game
+from game.word import Word
 import re
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
@@ -62,6 +63,12 @@ def updateMyWord(bot, update, args):
 
 def getRandomWord(bot, update):
 	logging.info(update)
+	word = game.getRandom('ushakov')
+	if not word:
+		response = "Очень странно. Не могу получить случайное словцо!"
+	else:
+		response = "Вот твоё случайное словцо: %s" % word.lower()
+	sendMsg(bot, update, response)
 
 
 def getGameInfo(bot, update, args):
@@ -97,6 +104,7 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['my_words_by_game', 'wg', 'си'], showMyWordsPerGame, pass_args=True),
 		CommandHandler(['my_words_by_round', 'wr', 'ср'], showMyWordsPerRound, pass_args=True),
 		CommandHandler(['update', 'u', 'о'], updateMyWord, pass_args=True),
+		CommandHandler(['get_random', 'gr', 'пс'], getRandomWord, pass_args=False),
 		MessageHandler(Filters.text, catchWord)
 	]
 ]

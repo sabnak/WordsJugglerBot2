@@ -1,6 +1,7 @@
 from libs.dbAdapter import DB
 import re
 import logging
+import random
 from game.player import Player
 from game.word import Word
 from game.round import Round
@@ -16,6 +17,10 @@ class Base_Game:
 
 	_WORDS_LIMIT = 1
 	_WORD_MIN_LENGTH = 5
+
+	_DICTIONARIES = {
+		"ushakov": r"f:\WordsJugglerBot\dictionaries\ushakov_reb.txt"
+	}
 
 	def addWord(self, update):
 		errorMsg = None
@@ -71,6 +76,16 @@ class Base_Game:
 		player_id = Player.getId(playerName)
 		game_id, round_id = Base_Game._getId(game_id)
 		return Word.getListByGameId(game_id, player_id, fullAccess)
+
+	def getRandom(self, dictionaryName):
+		attemptsLimit = 10
+		attempt = 1
+		while attempt <= attemptsLimit:
+			attempt += 1
+			word = random.choice(list(open(self._DICTIONARIES[dictionaryName])))
+			if Word.isWordValid(word, self._WORD_MIN_LENGTH)[0]:
+				return word
+		return None
 
 	@staticmethod
 	def _init():
