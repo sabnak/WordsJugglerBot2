@@ -33,16 +33,16 @@ class Base_Game:
 			return errorMsg
 		successMsg = ""
 		game_id, round_id = self._getId()
-		player_id = Player.getId(update.message.chat.first_name)
+		player_id = Player.getId(update.message.chat)
 		for word in wordsList:
 			params = dict(word=word.lower(), player_id=player_id, game_id=game_id, round_id=round_id)
-			wordStatus = Word.add(params, self._WORDS_LIMIT, self._WORD_MIN_LENGTH)
-			successMsg += "%s\n" % wordStatus[1]
+			response = Word.add(params, self._WORDS_LIMIT, self._WORD_MIN_LENGTH)
+			successMsg += "%s\n" % response
 		return successMsg.strip()
 
 	def updateWord(self, oldWord, newWord, update):
 		game_id, round_id = Base_Game._getId()
-		player_id = Player.getId(update.message.chat.first_name)
+		player_id = Player.getId(update.message.chat)
 		return Word.update(oldWord=oldWord, newWord=newWord, player_id=player_id, round_id=round_id, wordMinLength=self._WORD_MIN_LENGTH)
 
 	@staticmethod
@@ -65,15 +65,15 @@ class Base_Game:
 		return game
 
 	@staticmethod
-	def getPlayerWordsByRound(round_id=None, playerName=None, fullAccess=False):
-		player_id = Player.getId(playerName)
+	def getPlayerWordsByRound(update, round_id=None, fullAccess=False):
+		player_id = Player.getId(update.message.chat)
 		if not round_id:
 			game_id, round_id = Base_Game._getId(doNotInitNewGame=True)
 		return Word.getListByRoundId(round_id, player_id, fullAccess)
 
 	@staticmethod
-	def getPlayerWordsByGame(game_id=None, playerName=None, fullAccess=False):
-		player_id = Player.getId(playerName)
+	def getPlayerWordsByGame(update, game_id=None, fullAccess=False):
+		player_id = Player.getId(update.message.chat)
 		game_id, round_id = Base_Game._getId(game_id)
 		return Word.getListByGameId(game_id, player_id, fullAccess)
 

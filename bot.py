@@ -13,7 +13,20 @@ game = Game()
 
 def start(bot, update):
 	logging.info(update)
-	sendMsg(bot, update, "Ну что ж, карапузы, готовте ваши словцы!")
+	sendMsg(
+		bot,
+		update,
+		"""
+		Ну что ж, карапузы, готовте ваши словцы!
+		Просто пиши своё словцо мне. Я сам догадаюсь куда его впихнуть.
+		Поддерживаемые комманды:
+		/game_info, /i, /и - информация о текущей игре
+		/my_words_by_game, /wg, /си - твои словцы за текущую игру
+		/my_words_by_round, /wr, /ср - твои словцы за текущий раунд
+		/update, /u, /о - обнови своё словцо!
+		/get_random, /gr, /пс - случайное словцо. Вдохновись!
+		"""
+	)
 
 
 def catchWord(bot, update):
@@ -30,7 +43,7 @@ def catchWord(bot, update):
 def showMyWordsPerGame(bot, update, args):
 	logging.info(update)
 	game_id = int(args[0]) if args else None
-	wordsList = game.getPlayerWordsByGame(game_id, update.message.chat.first_name)
+	wordsList = game.getPlayerWordsByGame(update, game_id)
 	if not wordsList:
 		response = "Какой стыд. Ты не смог предложить ни одного словца за всю игру!"
 		sendMsg(bot, update, response)
@@ -42,7 +55,7 @@ def showMyWordsPerGame(bot, update, args):
 def showMyWordsPerRound(bot, update, args):
 	logging.info(update)
 	round_id = int(args[0]) if args else None
-	wordsList = game.getPlayerWordsByRound(round_id, update.message.chat.first_name)
+	wordsList = game.getPlayerWordsByRound(update, round_id)
 	if not wordsList:
 		response = "Какой стыд. Ты не смог предложить ни одного словца за целый раунд!"
 		sendMsg(bot, update, response)
@@ -68,6 +81,7 @@ def getRandomWord(bot, update):
 		response = "Очень странно. Не могу получить случайное словцо!"
 	else:
 		response = "Вот твоё случайное словцо: %s" % word.lower()
+	response += "Попробуй ещё: /gr"
 	sendMsg(bot, update, response)
 
 
@@ -99,7 +113,7 @@ def sendMsg(bot, update, msg):
 
 [
 	dispatcher.add_handler(handler) for handler in [
-		CommandHandler('start', start),
+		CommandHandler(['start', 'help', 'h', 'помощь', 'п'], start),
 		CommandHandler(['game_info', 'i', 'и'], getGameInfo, pass_args=True),
 		CommandHandler(['my_words_by_game', 'wg', 'си'], showMyWordsPerGame, pass_args=True),
 		CommandHandler(['my_words_by_round', 'wr', 'ср'], showMyWordsPerRound, pass_args=True),

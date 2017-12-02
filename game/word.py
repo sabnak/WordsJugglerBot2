@@ -1,6 +1,5 @@
 from libs.dbAdapter import DB
 import re
-import random
 
 
 class Word:
