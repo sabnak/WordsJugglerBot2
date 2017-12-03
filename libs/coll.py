@@ -22,6 +22,12 @@ def splitList(l, n):
 	n = max(1, n)
 	return [l[i:i+n] for i in range(0, len(l), n)]
 
+
+def simpleDictMerge(x, y):
+	z = x.copy()
+	z.update(y)
+	return z
+
 def bestOfMultiple(words, weights, maxWeight=.80):
 	weightsDict = OrderedDict([words[x], [x, y]] for x, y in enumerate([1 / len(words)] * len(words)))
 	pointsDict = dict()

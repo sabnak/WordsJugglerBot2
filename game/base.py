@@ -2,7 +2,7 @@ from libs.dbAdapter import DB
 import logging
 import random
 from collections import OrderedDict
-from libs.coll import splitList
+from libs.coll import splitList, simpleDictMerge
 from game.player import Player
 from game.word import Word
 from game.round import Round
@@ -126,9 +126,8 @@ class Base_Game:
 		if self.roundStatus == Round.ROUND_STATUS_PREPARATION:
 			Round.updateRoundStatus(round_id=self.round_id, status=Round.ROUND_STATUS_IN_PROGRESS)
 		self._addRandomWord()
-		shuffledWordsList = ["%s 0" % w['word'] for w in Word.getListByRoundId(self.round_id, fullAccess=True) if w['telegram_id'] != playerTelegramId]
-		random.shuffle(shuffledWordsList)
-		self._splitWordsIntoGroups(shuffledWordsList)
+		wordsList = self._splitWordsIntoGroups([("%s" % w['word'], w['id']) for w in Word.getListByRoundId(self.round_id, fullAccess=True) if w['telegram_id'] != playerTelegramId])
+		print(wordsList)
 		return """
 			Вот список всех словцов. Кроме того я добавил в него несколько несколько случайных (а может и нет). Хехе.
 			Добавь в них вместо ноликов свои баллы.
@@ -137,28 +136,30 @@ class Base_Game:
 			Суммарное минимальное количество баллов: %d
 			Максимальное количество баллов на слово: %d
 		""" % (
-			" ".join(shuffledWordsList),
+			"\n".join(["Группа %d: %s" % (i, " 0 ".join(w)) for i, w in wordsList.items()]),
 			self._ROUNDS[self.roundNumber]['maxWeightPerRound'],
 			self._ROUNDS[self.roundNumber]['minWeightPerRound'],
 			self._ROUNDS[self.roundNumber]['maxWeightPerWord']
 		)
 
-	def _splitWordsIntoGroups(self, words, popSuperfluousWords=True):
+	def _splitWordsIntoGroups(self, words, expelSuperfluousWords=True):
 		self._refreshGameState()
 		savedGroups = Group.getGroups(self.gameState)
 		if savedGroups:
 			return savedGroups
 		random.shuffle(words)
-		unluckyWords = None
-		if self._ROUNDS[self.roundNumber]['groupSize'] == -1:
-			groupSize = len(words)
-		else:
-			groupSize = self._ROUNDS[self.roundNumber]['groupSize']
-			wordsToPop = len(words) % groupSize
-			if popSuperfluousWords and wordsToPop:
-				unluckyWords = words[:wordsToPop]
-				del words[:wordsToPop]
-		return OrderedDict((i+1, v) for i, v in enumerate(splitList(words, groupSize))), unluckyWords
+		groupSize = len(words) if self._ROUNDS[self.roundNumber]['groupSize'] == -1 else self._ROUNDS[self.roundNumber]['groupSize']
+		groups = OrderedDict((i+1, v) for i, v in enumerate(splitList(words, groupSize)))
+		for groupNumber, wordsList in groups.items():
+			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self._ROUNDS[self.roundNumber]['groupSize'] else Group.STATUS_UNDEFINED
+			for wordInfo in wordsList:
+				Group.addWordToGroup(
+					simpleDictMerge(
+						dict(word_id=wordInfo[1], number=groupNumber, status=status),
+						self.gameState,
+					)
+				)
+		return OrderedDict((i, [w[0] for w in words]) for i, words in groups.items())
 
 	# def _saveWordIntoGr
 

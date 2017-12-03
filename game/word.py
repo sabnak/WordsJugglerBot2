@@ -38,7 +38,8 @@ class Word:
 	def getListByGameId(game_id, player_id=None, fullAccess=False):
 		condition = "player_id = %(player_id)s" if player_id else "status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
-		SELECT * FROM word
+		SELECT word.*, round.id round_id, round.number
+		FROM word
 		JOIN round ON (round.id = word.round_id)
 		WHERE word.game_id = %(game_id)s AND
 		""" + condition, dict(game_id=game_id, player_id=player_id))
@@ -47,7 +48,7 @@ class Word:
 	def getListByRoundId(round_id, player_id=None, fullAccess=False):
 		condition = " AND player_id = %(player_id)s" if player_id else " AND status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
-		SELECT *
+		SELECT word.*, player.name, player.telegram_id, player.id player_id, round.number, round.id round_id
 		FROM word
 		JOIN round ON (round.id = word.round_id)
 		JOIN player ON (player.id = word.player_id)
@@ -61,7 +62,7 @@ class Word:
 		if params['newWord'] == params['oldWord']:
 			return "И ты прислал два одинаковых слова... Зачем ты так глуп, а?"
 		if not DB.getOne("""
-			SELECT *
+			SELECT word.*, round.id round_id, round.number
 			FROM word
 			JOIN round ON (round.id = round_id)
 			WHERE word = %(oldWord)s AND player_id = %(player_id)s AND status='preparation'
