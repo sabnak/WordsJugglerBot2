@@ -2,12 +2,17 @@ from libs.dbAdapter import DB
 import logging
 from game.word import Word
 
+
 class Round:
+
+	ROUND_STATUS_PREPARATION = "preparation"
+	ROUND_STATUS_IN_PROGRESS = "in progress"
+	ROUND_STATUS_ENDED = "preparation"
 
 	@staticmethod
 	def getId(game_id):
 		_round = DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s ORDER BY number DESC LIMIT 1", dict(game_id=game_id))
-		return Round._set(game_id, 1) if not _round else _round['id'] if _round['status'] == 'preparation' else Round._init(game_id)
+		return Round._set(game_id, 1) if not _round else _round['id'] if _round['status'] != Round.ROUND_STATUS_ENDED else Round._init(game_id)
 
 	@staticmethod
 	def get(round_id):
@@ -47,14 +52,13 @@ class Round:
 		return parsedWordsList
 
 	@staticmethod
-	def _isRoundReadyToBegin(round_id):
-		pass
-		# if DB.getOne("SELECT * FROM round WHERE round_id = %(round_id)s ANS status = ''")
+	def updateRoundStatus(**params):
+		DB.execute("UPDATE round SET status=%(status)s WHERE id = %(round_id)s", params)
 
 	@staticmethod
 	def _init(game_id):
-		params = dict(game_id=game_id)
-		_round = DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s AND status = 'ended'", params)
+		params = dict(game_id=game_id, status=Round.ROUND_STATUS_ENDED)
+		_round = DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s AND status = %(status)s", params)
 		if _round:
 			params['number'] = _round['number'] + 1
 		elif not DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s LIMIT 1", params):

@@ -107,6 +107,12 @@ def getGameInfo(bot, update, args):
 	sendMsg(bot, update, response)
 
 
+def setState(bot, update):
+	logging.info(update)
+	response = game.setPlayerState(update)
+	sendMsg(bot, update, response)
+
+
 def fight(bot, update):
 	logging.info(update)
 	game.start()
@@ -114,12 +120,13 @@ def fight(bot, update):
 
 def getCandidates(bot, update):
 	logging.info(update)
-	game.getCandidates()
+	response = game.getCandidates(update)
+	sendMsg(bot, update, response)
 
 
 def sendMsg(bot, update, msg):
-	msg = re.sub(r"(?<=\n)[\s]+", "", msg)
-	bot.send_message(chat_id=update.message.chat_id, text=msg)
+	msg = re.sub(r"(?<=\n)[\s]+", "", msg) if msg else "Мне нечего тебе сказать, чёрт возьми!"
+	bot.send_message(chat_id=update.message.chat_id, text=msg, parse_mode="html")
 
 [
 	dispatcher.add_handler(handler) for handler in [
@@ -131,6 +138,7 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['random', 'r', 'пс'], getRandomWord, pass_args=False),
 		CommandHandler(['fight', 'f', 'б'], fight, pass_args=False),
 		CommandHandler(['candidates', 'c', 'к'], getCandidates, pass_args=False),
+		CommandHandler(['ready', 'готов'], setState, pass_args=False),
 		MessageHandler(Filters.text, catchWord)
 	]
 ]
