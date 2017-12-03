@@ -26,7 +26,7 @@ class Word:
 		if not status:
 			return False, response
 		DB.execute("INSERT INTO word SET word = %(word)s, player_id = %(player_id)s, game_id = %(game_id)s, round_id = %(round_id)s", params)
-		wordsForToday = DB.getList("SELECT * FROM word WHERE player_id = %(player_id)s AND game_id = %(game_id)s AND round_id = %(round_id)s)", params)
+		wordsForToday = DB.getList("SELECT * FROM word WHERE player_id = %(player_id)s AND game_id = %(game_id)s AND round_id = %(round_id)s", params)
 		additionalMsg = ""
 		if len(wordsForToday) == wordsLimit:
 			additionalMsg = " У тебя больше не осталось словцов в этом раунде, растяпа!"

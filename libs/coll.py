@@ -29,20 +29,21 @@ def simpleDictMerge(x, y):
 	return z
 
 
-def bestOfMultiple(words, weights, maxWeight=.80):
+def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	weightsDict = OrderedDict([words[x], [x, y]] for x, y in enumerate([1 / len(words)] * len(words)))
 	pointsDict = dict()
 	minWeight = (1 - maxWeight) / (len(words) - 1)
 	response = []
 	for author, weightsParsed in weights.items():
 		for word, weight in weightsParsed:
-			if word not in pointsDict: pointsDict[word] = 0
+			if word not in pointsDict:
+				pointsDict[word] = 0
 			pointsDict[word] += int(weight)
 			for w, k in weightsDict.items():
 				if w == word:
-					weightsDict[word][1] += 5 * int(weight) / 100
+					weightsDict[word][1] += percentPerPoint * int(weight) / 100
 				else:
-					weightsDict[w][1] -= 5 * int(weight) / 100 / (len(words) - 1)
+					weightsDict[w][1] -= percentPerPoint * int(weight) / 100 / (len(words) - 1)
 	weights = array([x[1] for x in weightsDict.values()])
 	for i, weight in enumerate(weights):
 		# weights[i] += weights[i]/100*100

@@ -3,12 +3,14 @@ import logging
 import random
 from collections import OrderedDict
 import re
-from libs.coll import splitList, simpleDictMerge
+from libs.coll import splitList
 from game.player import Player
 from game.word import Word
 from game.round import Round
 from game.group import Group
 from game.vote import Vote
+from game.log import Log
+import json
 
 
 class Base_Game:
@@ -25,6 +27,9 @@ class Base_Game:
 
 	_RANDOM_PLAYER = {'id': -1, 'first_name': "Жорж"}
 
+	STATUS_IN_PROGRESS = "in progress"
+	STATUS_ENDED = "ended"
+
 	game_id = None
 	round_id = None
 	roundNumber = None
@@ -34,7 +39,13 @@ class Base_Game:
 		_round = Round.get(self.round_id)
 		self.roundNumber = _round['number']
 		self.roundStatus = _round['status']
-		self.gameState = dict(game_id=self.game_id, round_id=self.round_id, roundNumber=self.roundNumber, roundStatus=self.roundStatus)
+		self.gameState = dict(
+			game_id=self.game_id,
+			round_id=self.round_id,
+			roundNumber=self.roundNumber,
+			roundStatus=self.roundStatus,
+			gameCreateDate=self._get(self.game_id)['createDate'].strftime('%Y-%m-%d %H:%M:%S')
+		)
 		self.roundSettings = self._ROUNDS[self.roundNumber]
 
 	def addWord(self, update):
@@ -52,15 +63,21 @@ class Base_Game:
 	def start(self):
 		self._refreshGameState()
 		groups = Group.get(groupByGroupNumber=True, **self.gameState)
+		if self.roundStatus != Round.STATUS_IN_PROGRESS:
+			return "Не надо огня! Рано ещё начинать рубку. Предлагайте свои словцы и голосуйте за другие"
 		lazyPlayers = dict()
 		cheaters = dict()
-		response = []
+		responseList = []
 		preparedGroups = OrderedDict()
+		wordsByPlayer = dict()
 		for groupNumber, group in groups.items():
 			wordsList = []
 			weightsList = dict()
 			for info in group:
-				wordsList.append(info['word'])
+				if info['word'] not in wordsByPlayer:
+					wordsByPlayer[info['word']] = info
+				if info['word'] not in wordsList:
+					wordsList.append(info['word'])
 				if info['player_id'] not in weightsList:
 					weightsList[info['electorPlayer_id']] = []
 				weightsList[info['electorPlayer_id']].append((info['word'], info['weight']))
@@ -73,15 +90,27 @@ class Base_Game:
 					cheaters[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
 			preparedGroups[groupNumber] = dict(words=wordsList, weights=weightsList)
 		if lazyPlayers or cheaters:
-			response.append("Ничего у нас не выйдет!")
+			responseList.append("Ничего у нас не выйдет!")
 			if lazyPlayers:
-				response.append("Эти ленивые задницы до сих пор не вложили все свои баллы:\n%s" % " ".join("%s (%d)" % (x['name'], x['spentWeight']) for x in lazyPlayers.values()))
+				responseList.append("Эти ленивые задницы до сих пор не вложили все свои баллы:\n%s" % " ".join("%s (%d)" % (x['name'], x['spentWeight']) for x in lazyPlayers.values()))
 			if cheaters:
-				response.append("А этим засранцам как-то удалось вложить больше баллов:\n%s" % " ".join("%s (%d)" % (x['name'], x['spentWeight']) for x in lazyPlayers.values()))
-			return "\n".join(response)
-		response = self._start(preparedGroups)
-
-		return "\n".join(response)
+				responseList.append("А этим засранцам как-то удалось вложить больше баллов:\n%s" % " ".join("%s (%d)" % (x['name'], x['spentWeight']) for x in lazyPlayers.values()))
+			return "\n".join(responseList)
+		responseList = [
+			"Игра от <b>%(gameCreateDate)s</b>. Раунд <b>%(roundNumber)d</b>" % self.gameState
+		]
+		winners = []
+		for groupNumber, group in preparedGroups.items():
+			responseList.append("<b>Группа %d</b>" % groupNumber)
+			winnerWord, stats, response = self._start(group['words'], group['weights'])
+			winners.append(wordsByPlayer[winnerWord]['player_id'])
+			responseList += response
+			Log.save(data=json.dumps(stats), groupNumber=groupNumber, **self.gameState)
+		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
+		if len(winners) == 1:
+			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0], **self.gameState)
+		responseList += self._getPlainPlayersWeights()
+		return "\n".join(responseList)
 
 	def updateWord(self, oldWord, newWord, update):
 		self._refreshGameState()
@@ -110,6 +139,27 @@ class Base_Game:
 		game['lastRoundPlayers'] = game['rounds'][-1]['players']
 		game['lastRoundPlayersPlain'] = "\n".join(["%s: %s" % (p, str(w)) for p, w in game['lastRoundPlayers'].items()]) if game['lastRoundPlayers'] else ""
 		return game
+
+	@staticmethod
+	def getLastGameLog():
+		game = DB.getOne("SELECT * FROM game WHERE state = '%s' ORDER BY id DESC")
+		if not game:
+			return "Охохо. Ещё не было завершено ни одной игры"
+		log = Base_Game._getGameLog(game['id'])
+
+
+	@staticmethod
+	def getGameLog(game_id):
+		log = Base_Game._getGameLog(game_id)
+		if not log:
+			return "Не получается найти игру с ID <b>%d</b>" % game_id
+
+	@staticmethod
+	def _getGameLog(game_id):
+		game = Base_Game._get(game_id)
+		if not game:
+			return False
+		Log.get(game_id=game['id'])
 
 	@staticmethod
 	def getPlayerWordsByRound(update, round_id=None, fullAccess=False):
@@ -160,9 +210,9 @@ class Base_Game:
 				)
 			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word']))
 		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] != self._RANDOM_PLAYER['id']]
-		if len(wordsByPlayer) < self.roundSettings['minPlayer']:
+		if len(wordsByPlayer) < self.roundSettings['minPlayers']:
 			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer), self.roundSettings['minPlayer'])
-		if 'maxPlayer' in self.roundSettings and len(wordsByPlayer) > self.roundSettings['maxPlayer']:
+		if len(wordsByPlayer) > self.roundSettings['maxPlayers']:
 			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer), self.roundSettings['maxPlayer'])
 		if unreadyPlayers:
 			return "Слишком много тормозов в игре. Я не могу показать тебе словцы, пока все не будут готовы. Список тормозов:\n%s" % " ".join(unreadyPlayers)
@@ -210,7 +260,7 @@ class Base_Game:
 			responses.append("Ура! Я успешно записал %d баллов словцу <b>%s</b>." % (weight, word))
 		return "\n".join(responses) + ("\nТы просадил <b>%d</b>/%d" % (Vote.getPlayerSumOfWeightPerRound(player_id=player_id, **self.gameState), self.roundSettings['maxWeightPerRound']))
 
-	def getSelfVotesStatistics(self, update):
+	def getSelfVotes(self, update):
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
 		overallSpent = Vote.getPlayerSumOfWeightOverall(player_id=player_id)
@@ -226,6 +276,14 @@ class Base_Game:
 			lastRoundSpent,
 			self.roundSettings['maxWeightPerRound'], " ".join("%s (%d)" % (vote['word'], vote['weight']) for vote in votes.values() if vote['weight'])
 		)
+
+	def _getPlainPlayersWeights(self):
+		responseList = []
+		playerVotes, votesSum = Vote.getWeightPerRoundByPlayer(**self.gameState)
+		responseList.append("Игроки поставили такие баллы:")
+		responseList += ["%s: %s (<b>%d</b>)" % (name, vote['word'], vote['weight']) for name, votes in playerVotes.items() for vote in votes if vote['weight'] > 0]
+		responseList.append("Всего поставлено <b>%d</b> баллов" % votesSum)
+		return responseList
 
 	def _isPlayerCanVote(self, player_id, weight, word_id, word):
 		groupNumber, groupWords = Group.getGroupByWord(word_id=word_id, **self.gameState)
@@ -306,13 +364,21 @@ class Base_Game:
 
 	@staticmethod
 	def _getId(game_id=None, doNotInitNewGame=False):
-		condition = "" if not game_id else " AND id = %d" % game_id
-		game = DB.getOne("SELECT * FROM game WHERE winner_id IS NULL %s ORDER BY id DESC" % condition)
+		condition = ("status = '%s'" % Base_Game.STATUS_IN_PROGRESS) if not game_id else " AND id = %d" % game_id
+		game = DB.getOne("SELECT * FROM game WHERE %s ORDER BY id DESC" % condition)
 		if doNotInitNewGame and not game:
 			return None
 		game_id = Base_Game._init() if not game else game['id']
 		return game_id, Round.getId(game_id)
 
-	def _start(self, groups):
+	@staticmethod
+	def _get(game_id):
+		return DB.getOne("SELECT * FROM game WHERE id = %(game_id)s" % dict(game_id=game_id))
+
+	@staticmethod
+	def _update(**params):
+		return DB.execute("UPDATE game SET winner_id = %(winner_id)s, status = %(status)s WHERE id = %(game_id)s", params)
+
+	def _start(self, words, weights):
 		raise NotImplementedError("Method must be override")
 

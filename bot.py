@@ -36,12 +36,6 @@ def start(bot, update):
 		"""
 	)
 
-	#
-	# CommandHandler(['fight', 'f', 'б'], fight, pass_args=False),
-	# 	CommandHandler(['candidates', 'c', 'к'], getCandidates, pass_args=False),
-	# 	CommandHandler(['ready', 'готов'], setState, pass_args=False),
-	# 	CommandHandler(['vote', 'v', 'голос', 'г'], vote, pass_args=True),
-	# 	CommandHandler(['vote_info', 'vi', 'голос_инфо', 'ги'], getMyVotes),
 
 def catchWord(bot, update):
 	logging.info(update)
@@ -155,7 +149,7 @@ def vote(bot, update, args):
 
 def getMyVotes(bot, update):
 	logging.info(update)
-	response = game.getSelfVotesStatistics(update)
+	response = game.getSelfVotes(update)
 	sendMsg(bot, update, response)
 
 

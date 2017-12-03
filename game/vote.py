@@ -12,6 +12,22 @@ class Vote:
 		""", params)
 
 	@staticmethod
+	def getWeightPerRoundByPlayer(**params):
+		votesRow = DB.getAll("""
+			SELECT word, player.id player_id, name, weight
+			FROM vote
+			JOIN word ON (word.id = vote.word_id)
+			JOIN player ON (player.id = vote.player_id)
+			WHERE vote.game_id = %(game_id)s AND vote.round_id = %(round_id)s
+		""", params)
+		parsedVotes = {}
+		for voteRow in votesRow:
+			if voteRow['name'] not in parsedVotes:
+				parsedVotes[voteRow['name']] = []
+			parsedVotes[voteRow['name']].append(voteRow)
+		return parsedVotes, sum([vote['weight'] for votes in parsedVotes.values() for vote in votes])
+
+	@staticmethod
 	def getPlayerWeightPerRoundByWord(**params):
 		votes = DB.getList("""
 			SELECT word, vote.word_id, weight
