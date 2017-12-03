@@ -1,5 +1,5 @@
 from game.base import Base_Game
-from game.round import Round
+from libs.coll import bestOfMultiple
 
 
 class Game(Base_Game):
@@ -22,7 +22,16 @@ class Game(Base_Game):
 		)
 	}
 
-	def _start(self):
-		pass
+	def _start(self, groups):
+		response = []
+		for groupNumber, group in groups.items():
+			winnerWord, stats = bestOfMultiple(group['words'], group['weights'])
+			response += [
+				"<b>Группа %d</b>" % groupNumber,
+				"Баллы:\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
+				"Вероятности:\n%s" % "\n".join(["%.2f: %s" % (p[1], w) for w, p in stats['weights'].items()]),
+				"Слово-победитель: <b>%s</b>" % winnerWord
+			]
+		return response
 
 

@@ -41,13 +41,12 @@ class Base_Game:
 		self._refreshGameState()
 		if self.roundStatus != Round.STATUS_PREPARATION:
 			return "Слишком поздно вертеть задом. Раунд уже началася. Дождись окончания раунда"
-		return Word.add(dict(
+		return Word.add(
 			word=update.message.text,
 			player_id=Player.getId(update.message.chat),
-			game_id=self.game_id,
-			round_id=self.round_id),
-			self.roundSettings['minWordsPerPlayer'],
-			self.roundSettings['minWordLength']
+			wordsLimit=self.roundSettings['minWordsPerPlayer'],
+			wordMinLength=self.roundSettings['minWordLength'],
+			**self.gameState
 		)[1]
 
 	def start(self):
@@ -56,8 +55,15 @@ class Base_Game:
 		lazyPlayers = dict()
 		cheaters = dict()
 		response = []
+		preparedGroups = OrderedDict()
 		for groupNumber, group in groups.items():
+			wordsList = []
+			weightsList = dict()
 			for info in group:
+				wordsList.append(info['word'])
+				if info['player_id'] not in weightsList:
+					weightsList[info['electorPlayer_id']] = []
+				weightsList[info['electorPlayer_id']].append((info['word'], info['weight']))
 				if info['telegram_id'] == self._RANDOM_PLAYER['id']:
 					continue
 				playerSpentWeight = Vote.getPlayerSumOfWeightPerRound(player_id=info['player_id'], **self.gameState)
@@ -65,6 +71,7 @@ class Base_Game:
 					lazyPlayers[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
 				if playerSpentWeight > self.roundSettings['maxWeightPerRound']:
 					cheaters[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
+			preparedGroups[groupNumber] = dict(words=wordsList, weights=weightsList)
 		if lazyPlayers or cheaters:
 			response.append("Ничего у нас не выйдет!")
 			if lazyPlayers:
@@ -72,7 +79,9 @@ class Base_Game:
 			if cheaters:
 				response.append("А этим засранцам как-то удалось вложить больше баллов:\n%s" % " ".join("%s (%d)" % (x['name'], x['spentWeight']) for x in lazyPlayers.values()))
 			return "\n".join(response)
-		self._start(groups)
+		response = self._start(preparedGroups)
+
+		return "\n".join(response)
 
 	def updateWord(self, oldWord, newWord, update):
 		self._refreshGameState()
@@ -280,13 +289,12 @@ class Base_Game:
 			word = self.getRandom("ushakov")
 			if not word:
 				continue
-			Word.add(dict(
+			Word.add(
 				word=word,
 				player_id=Player.getId(self._RANDOM_PLAYER),
-				game_id=self.game_id,
-				round_id=self.round_id),
-				self.roundSettings['minWordsPerPlayer'],
-				self.roundSettings['minWordLength']
+				wordsLimit=self.roundSettings['minWordsPerPlayer'],
+				wordMinLength=self.roundSettings['minWordLength'],
+				**self.gameState
 			)
 			wordsAdded += 1
 
@@ -298,13 +306,13 @@ class Base_Game:
 
 	@staticmethod
 	def _getId(game_id=None, doNotInitNewGame=False):
-		condition = "DATE(createDate) = DATE(NOW())" if not game_id else "id = %d" % game_id
-		game = DB.getOne("SELECT * FROM game WHERE winner_id IS NULL AND %s" % condition)
+		condition = "" if not game_id else " AND id = %d" % game_id
+		game = DB.getOne("SELECT * FROM game WHERE winner_id IS NULL %s ORDER BY id DESC" % condition)
 		if doNotInitNewGame and not game:
 			return None
 		game_id = Base_Game._init() if not game else game['id']
 		return game_id, Round.getId(game_id)
 
-	def _start(self):
+	def _start(self, groups):
 		raise NotImplementedError("Method must be override")
 

@@ -23,10 +23,12 @@ class Group:
 	def get(groupByGroupNumber=False, **params):
 		numberCondition = " AND number = %(number)s" if 'number' in params else ""
 		groupsList = DB.getList("""
-		SELECT number, word, player.id player_id, name, telegram_id
+		SELECT number, word, p1.id player_id, p1.name, p1.telegram_id, weight, p2.id electorPlayer_id, p2.name electorName
 		FROM groups
 		JOIN word ON (word.id = groups.word_id)
-		JOIN player ON (player.id = word.player_id)
+		JOIN player p1 ON (p1.id = word.player_id)
+		LEFT JOIN vote ON (vote.word_id = groups.word_id AND vote.game_id = %(game_id)s AND vote.round_id = %(round_id)s)
+		JOIN player p2 ON (p2.id = vote.player_id)
 		WHERE groups.game_id = %(game_id)s AND groups.round_id = %(round_id)s
 		""" + numberCondition, params)
 		if not groupByGroupNumber:

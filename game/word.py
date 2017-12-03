@@ -13,12 +13,12 @@ class Word:
 	}
 
 	@staticmethod
-	def add(params, wordsLimit, wordMinLength):
+	def add(wordsLimit, wordMinLength, **params):
 		params['word'] = params['word'].strip().lower()
 		wordsForToday = DB.getList("""
 			SELECT *
 			FROM word
-			WHERE player_id = %(player_id)s AND DATE(createDate) = DATE(NOW()) AND game_id = %(game_id)s AND round_id = %(round_id)s
+			WHERE player_id = %(player_id)s AND game_id = %(game_id)s AND round_id = %(round_id)s
 		""", params)
 		if len(wordsForToday) >= wordsLimit:
 			return False, Word.ERROR_CODES['NOT_IN_TIME_WORD'] % wordsLimit
@@ -26,10 +26,10 @@ class Word:
 		if not status:
 			return False, response
 		DB.execute("INSERT INTO word SET word = %(word)s, player_id = %(player_id)s, game_id = %(game_id)s, round_id = %(round_id)s", params)
-		wordsForToday = DB.getList("SELECT * FROM word WHERE player_id = %(player_id)s AND DATE(createDate) = DATE(NOW())", params)
+		wordsForToday = DB.getList("SELECT * FROM word WHERE player_id = %(player_id)s AND game_id = %(game_id)s AND round_id = %(round_id)s)", params)
 		additionalMsg = ""
 		if len(wordsForToday) == wordsLimit:
-			additionalMsg = " У тебя больше не осталось слов на сегодня."
+			additionalMsg = " У тебя больше не осталось словцов в этом раунде, растяпа!"
 		if len(wordsForToday) < wordsLimit:
 			additionalMsg = " Ты можешь предложить ещё %d смешных словца" % (wordsLimit - len(wordsForToday))
 		return True, "Твоё жалкое словцо \"%s\" принято, свинюшка! %s" % (params['word'], additionalMsg)
