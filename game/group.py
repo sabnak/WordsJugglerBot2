@@ -10,20 +10,33 @@ class Group:
 	STATUS_UNDEFINED = 'undefined'
 
 	@staticmethod
-	def getGroups(**params):
-		numberCondition = " AND number = %(number)s" if 'number' in params else ""
-		groupsRows = DB.getList("""
-			SELECT number, word
-			FROM groups
-			JOIN word ON (word.id = groups.word_id)
-			WHERE groups.game_id=%(game_id)s AND groups.round_id=%(round_id)s
-		""" + numberCondition, params)
+	def getGroupWords(**params):
+		groupsRows = Group.get(**params)
 		groups = OrderedDict()
 		for groupRow in groupsRows:
 			if groupRow['number'] not in groups:
 				groups[groupRow['number']] = []
 			groups[groupRow['number']].append(groupRow['word'])
 		return groups
+
+	@staticmethod
+	def get(groupByGroupNumber=False, **params):
+		numberCondition = " AND number = %(number)s" if 'number' in params else ""
+		groupsList = DB.getList("""
+		SELECT number, word, player.id player_id, name, telegram_id
+		FROM groups
+		JOIN word ON (word.id = groups.word_id)
+		JOIN player ON (player.id = word.player_id)
+		WHERE groups.game_id = %(game_id)s AND groups.round_id = %(round_id)s
+		""" + numberCondition, params)
+		if not groupByGroupNumber:
+			return groupsList
+		groupedGroups = OrderedDict()
+		for group in groupsList:
+			if group['number'] not in groupedGroups:
+				groupedGroups[group['number']] = []
+			groupedGroups[group['number']].append(group)
+		return groupedGroups
 
 	@staticmethod
 	def getGroupNumberByWordId(**params):
@@ -35,7 +48,7 @@ class Group:
 		number = Group.getGroupNumberByWordId(**params)
 		if not number:
 			return None
-		groups = Group.getGroups(number=number, **params)
+		groups = Group.getGroupWords(number=number, **params)
 		if not groups:
 			return None
 		if len(groups) > 1:

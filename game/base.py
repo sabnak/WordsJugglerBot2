@@ -50,6 +50,30 @@ class Base_Game:
 			self.roundSettings['minWordLength']
 		)[1]
 
+	def start(self):
+		self._refreshGameState()
+		groups = Group.get(groupByGroupNumber=True, **self.gameState)
+		lazyPlayers = dict()
+		cheaters = dict()
+		response = []
+		for groupNumber, group in groups.items():
+			for info in group:
+				if info['telegram_id'] == self._RANDOM_PLAYER['id']:
+					continue
+				playerSpentWeight = Vote.getPlayerSumOfWeightPerRound(player_id=info['player_id'], **self.gameState)
+				if playerSpentWeight < self.roundSettings['maxWeightPerRound']:
+					lazyPlayers[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
+				if playerSpentWeight > self.roundSettings['maxWeightPerRound']:
+					cheaters[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
+		if lazyPlayers or cheaters:
+			response.append("Ничего у нас не выйдет!")
+			if lazyPlayers:
+				response.append("Эти ленивые задницы до сих пор не вложили все свои баллы:\n%s" % " ".join("%s (%d)" % (x['name'], x['spentWeight']) for x in lazyPlayers.values()))
+			if cheaters:
+				response.append("А этим засранцам как-то удалось вложить больше баллов:\n%s" % " ".join("%s (%d)" % (x['name'], x['spentWeight']) for x in lazyPlayers.values()))
+			return "\n".join(response)
+		self._start(groups)
+
 	def updateWord(self, oldWord, newWord, update):
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
@@ -174,8 +198,25 @@ class Base_Game:
 			if not voteStatus:
 				continue
 			Vote.set(word_id=word_id, weight=weight, player_id=player_id, **self.gameState)
-			responses.append("Ура! Я успешно записал %d баллов словцу <b>%s</b>. Надеюсь это словцо того стоило." % (weight, word))
-		return "\n".join(responses) + ("\nТы просадил %d/%d" % (Vote.getPlayerSumOfWeightPerRound(player_id=player_id, **self.gameState), self.roundSettings['maxWeightPerRound']))
+			responses.append("Ура! Я успешно записал %d баллов словцу <b>%s</b>." % (weight, word))
+		return "\n".join(responses) + ("\nТы просадил <b>%d</b>/%d" % (Vote.getPlayerSumOfWeightPerRound(player_id=player_id, **self.gameState), self.roundSettings['maxWeightPerRound']))
+
+	def getSelfVotesStatistics(self, update):
+		self._refreshGameState()
+		player_id = Player.getId(update.message.chat)
+		overallSpent = Vote.getPlayerSumOfWeightOverall(player_id=player_id)
+		lastGameSpent = Vote.getPlayerSumOfWeightPerGame(player_id=player_id, **self.gameState)
+		votes, lastRoundSpent = Vote.getPlayerWeightPerRoundByWord(player_id=player_id, **self.gameState)
+		return """
+			За всё время ты вложил %d очков. За последнюю игру - %d
+			В текущем раунде ты потратил %d/%d очков. Спустил ты их на эти словцы:
+			<b>%s</b>
+		""" % (
+			overallSpent,
+			lastGameSpent,
+			lastRoundSpent,
+			self.roundSettings['maxWeightPerRound'], " ".join("%s (%d)" % (vote['word'], vote['weight']) for vote in votes.values() if vote['weight'])
+		)
 
 	def _isPlayerCanVote(self, player_id, weight, word_id, word):
 		groupNumber, groupWords = Group.getGroupByWord(word_id=word_id, **self.gameState)
@@ -212,7 +253,7 @@ class Base_Game:
 
 	def _splitWordsIntoGroups(self, words, expelSuperfluousWords=True):
 		self._refreshGameState()
-		savedGroups = Group.getGroups(**self.gameState)
+		savedGroups = Group.getGroupWords(**self.gameState)
 		if savedGroups:
 			return savedGroups
 		random.shuffle(words)
@@ -264,6 +305,6 @@ class Base_Game:
 		game_id = Base_Game._init() if not game else game['id']
 		return game_id, Round.getId(game_id)
 
-	def start(self):
+	def _start(self):
 		raise NotImplementedError("Method must be override")
 

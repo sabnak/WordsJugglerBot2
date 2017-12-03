@@ -22,7 +22,7 @@ class Game(Base_Game):
 		)
 	}
 
-	def start(self):
+	def _start(self):
 		pass
 
 

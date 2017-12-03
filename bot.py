@@ -27,10 +27,21 @@ def start(bot, update):
 		/my_words_by_game, /wg, /си - твои словцы за текущую игру
 		/my_words_by_round, /wr, /ср - твои словцы за текущий раунд
 		/update, /u, /о - обнови своё словцо!
-		/random, /r, /пс - случайное словцо. Вдохновись!
+		/random, /r, /р - случайное словцо. Вдохновись!
+		/candidates, /c, /к - посмотреть список словцов-кандидатов.
+		/ready, /готов - говорит мне, что вы готовы/не готовы к мясорубке.
+		/vote /v /голос /г - проголосовать за понравившиеся словцы.
+		/vote_info, /vi, /голос_инфо, /ги - посмотреть информацию о своих баллах
+		/fight, /f, /битва, /б - инициировать выбор лучшего словца. Бой не начнётся, пока все, предложившие словцы, не потратят все баллы.
 		"""
 	)
 
+	#
+	# CommandHandler(['fight', 'f', 'б'], fight, pass_args=False),
+	# 	CommandHandler(['candidates', 'c', 'к'], getCandidates, pass_args=False),
+	# 	CommandHandler(['ready', 'готов'], setState, pass_args=False),
+	# 	CommandHandler(['vote', 'v', 'голос', 'г'], vote, pass_args=True),
+	# 	CommandHandler(['vote_info', 'vi', 'голос_инфо', 'ги'], getMyVotes),
 
 def catchWord(bot, update):
 	logging.info(update)
@@ -119,7 +130,8 @@ def setState(bot, update):
 
 def fight(bot, update):
 	logging.info(update)
-	game.start()
+	response = game.start()
+	sendMsg(bot, update, response)
 
 
 def getCandidates(bot, update):
@@ -132,9 +144,18 @@ def vote(bot, update, args):
 	logging.info(update)
 	string = ' '.join(args).lower()
 	if not string:
-		response = "Ну ты чё. Скинь непустую строчку со своими баллами"
+		response = """
+			Ну ты чё. Скинь непустую строчку со своими баллами в формате: \"Словцо 1 Словцо 5 Словцо 2\".
+			Где \"Словцо\" - название словца, а циферки - твои баллы.
+		"""
 	else:
 		response = game.vote(update, string)
+	sendMsg(bot, update, response)
+
+
+def getMyVotes(bot, update):
+	logging.info(update)
+	response = game.getSelfVotesStatistics(update)
 	sendMsg(bot, update, response)
 
 
@@ -149,11 +170,12 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['my_words_by_game', 'wg', 'си'], showMyWordsPerGame, pass_args=True),
 		CommandHandler(['my_words_by_round', 'wr', 'ср'], showMyWordsPerRound, pass_args=True),
 		CommandHandler(['update', 'u', 'о'], updateMyWord, pass_args=True),
-		CommandHandler(['random', 'r', 'пс'], getRandomWord, pass_args=False),
-		CommandHandler(['fight', 'f', 'б'], fight, pass_args=False),
+		CommandHandler(['random', 'r', 'р'], getRandomWord, pass_args=False),
+		CommandHandler(['fight', 'f', 'битва', 'б'], fight, pass_args=False),
 		CommandHandler(['candidates', 'c', 'к'], getCandidates, pass_args=False),
 		CommandHandler(['ready', 'готов'], setState, pass_args=False),
-		CommandHandler(['vote', 'v', 'голос'], vote, pass_args=True),
+		CommandHandler(['vote', 'v', 'голос', 'г'], vote, pass_args=True),
+		CommandHandler(['vote_info', 'vi', 'голос_инфо', 'ги'], getMyVotes),
 		MessageHandler(Filters.text, catchWord),
 
 

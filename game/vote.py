@@ -22,9 +22,42 @@ class Vote:
 		return {vote['word_id']: vote for vote in votes}, sum([vote['weight'] for vote in votes])
 
 	@staticmethod
+	def getPlayerWeightPerGame(**params):
+		votes = DB.getList("""
+			SELECT word, vote.word_id, weight
+			FROM vote
+			JOIN word ON (word.id = vote.word_id)
+			WHERE vote.game_id = %(game_id)s AND vote.player_id = %(player_id)s
+		""", params)
+		return {vote['word_id']: vote for vote in votes}, sum([vote['weight'] for vote in votes])
+
+	@staticmethod
+	def getPlayerWeightOverAll(**params):
+		votes = DB.getList("""
+			SELECT word, vote.word_id, weight
+			FROM vote
+			JOIN word ON (word.id = vote.word_id)
+			WHERE vote.player_id = %(player_id)s
+		""", params)
+		return {vote['word_id']: vote for vote in votes}, sum([vote['weight'] for vote in votes])
+
+	@staticmethod
 	def getPlayerSumOfWeightPerRound(**params):
 		votes = Vote.getPlayerWeightPerRoundByWord(**params)
-		print(votes)
+		if not votes[0]:
+			return 0
+		return votes[1]
+
+	@staticmethod
+	def getPlayerSumOfWeightPerGame(**params):
+		votes = Vote.getPlayerWeightPerGame(**params)
+		if not votes[0]:
+			return 0
+		return votes[1]
+
+	@staticmethod
+	def getPlayerSumOfWeightOverall(**params):
+		votes = Vote.getPlayerWeightOverAll(**params)
 		if not votes[0]:
 			return 0
 		return votes[1]
