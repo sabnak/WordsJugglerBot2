@@ -33,22 +33,27 @@ class Base_Game:
 		self.roundNumber = _round['number']
 		self.roundStatus = _round['status']
 		self.gameState = dict(game_id=self.game_id, round_id=self.round_id, roundNumber=self.roundNumber, roundStatus=self.roundStatus)
+		self.roundSettings = self._ROUNDS[self.roundNumber]
 
 	def addWord(self, update):
 		self._refreshGameState()
+		if self.roundStatus != Round.STATUS_PREPARATION:
+			return "Слишком поздно вертеть задом. Раунд уже началася. Дождись окончания раунда"
 		return Word.add(dict(
 			word=update.message.text,
 			player_id=Player.getId(update.message.chat),
 			game_id=self.game_id,
 			round_id=self.round_id),
-			self._ROUNDS[self.roundNumber]['minWordsPerPlayer'],
-			self._ROUNDS[self.roundNumber]['minWordLength']
+			self.roundSettings['minWordsPerPlayer'],
+			self.roundSettings['minWordLength']
 		)[1]
 
 	def updateWord(self, oldWord, newWord, update):
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
-		return Word.update(oldWord=oldWord, newWord=newWord, player_id=player_id, round_id=self.round_id, wordMinLength=self._ROUNDS[self.roundNumber]['minWordLength'])
+		if Player.getState(player_id=player_id, **self.gameState):
+			return "Ты не можешь обновить своё убогое словцо, если ты уже приготовился играть, вонючка!"
+		return Word.update(oldWord=oldWord, newWord=newWord, player_id=player_id, round_id=self.round_id, wordMinLength=self.roundSettings['minWordLength'])
 
 	@staticmethod
 	def get(game_id=None):
@@ -96,15 +101,17 @@ class Base_Game:
 
 	def setPlayerState(self, update):
 		self._refreshGameState()
-		if self.roundStatus != Round.ROUND_STATUS_PREPARATION:
+		if self.roundStatus != Round.STATUS_PREPARATION:
 			return "Поздняк метаться. Раунд уже запущен. Молись!"
 		player_id = Player.getId(update.message.chat)
+		playerWords = Word.getListByRoundId(round_id=self.round_id, player_id=player_id)
+		if len(playerWords) < self.roundSettings['minWordsPerPlayer']:
+			return "Надо предложить побольше словцов, чтобы быть готовым. Осталось предложить: %d/%d" % (len(playerWords), self.roundSettings['minWordsPerPlayer'])
 		return "Ты больше не готов к игре в этом раунде, трусиха" if not Player.setState(player_id=player_id, round_id=self.round_id) else \
 			"Ты изготовился к игре. Удач!"
 
 	def getCandidates(self, update):
 		self._refreshGameState()
-		playerTelegramId = update.message.chat.id
 		fullInfoWordsList = Word.getListByRoundId(self.round_id, fullAccess=True)
 		wordsByPlayer = dict()
 		for wordInfo in fullInfoWordsList:
@@ -114,22 +121,22 @@ class Base_Game:
 					isReady=Player.getState(player_id=wordInfo['player_id'], round_id=self.round_id),
 					name=wordInfo['name'],
 					telegram_id=wordInfo['telegram_id'],
+					player_id=wordInfo['player_id'],
 				)
-			wordsByPlayer[wordInfo['player_id']]['words'].append(wordInfo['word'])
+			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word']))
 		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] != self._RANDOM_PLAYER['id']]
-		if len(wordsByPlayer) < self._ROUNDS[self.roundNumber]['minPlayer']:
-			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer), self._ROUNDS[self.roundNumber]['minPlayer'])
-		if 'maxPlayer' in self._ROUNDS[self.roundNumber] and len(wordsByPlayer) > self._ROUNDS[self.roundNumber]['maxPlayer']:
-			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer), self._ROUNDS[self.roundNumber]['maxPlayer'])
+		if len(wordsByPlayer) < self.roundSettings['minPlayer']:
+			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer), self.roundSettings['minPlayer'])
+		if 'maxPlayer' in self.roundSettings and len(wordsByPlayer) > self.roundSettings['maxPlayer']:
+			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer), self.roundSettings['maxPlayer'])
 		if unreadyPlayers:
 			return "Слишком много тормозов в игре. Я не могу показать тебе словцы, пока все не будут готовы. Список тормозов:\n%s" % " ".join(unreadyPlayers)
-		if self.roundStatus == Round.ROUND_STATUS_PREPARATION:
-			Round.updateRoundStatus(round_id=self.round_id, status=Round.ROUND_STATUS_IN_PROGRESS)
+		if self.roundStatus == Round.STATUS_PREPARATION:
+			Round.updateRoundStatus(round_id=self.round_id, status=Round.STATUS_IN_PROGRESS)
 		self._addRandomWord()
-		wordsList = self._splitWordsIntoGroups([("%s" % w['word'], w['id']) for w in Word.getListByRoundId(self.round_id, fullAccess=True) if w['telegram_id'] != playerTelegramId])
-		print(wordsList)
+		wordsList = self._splitWordsIntoGroups([word for wordsInfo in wordsByPlayer.values() for word in wordsInfo['words']])
 		return """
-			Вот список всех словцов. Кроме того я добавил в него несколько несколько случайных (а может и нет). Хехе.
+			Вот список всех словцов. Кроме того я добавил в него несколько случайных (а может и нет). Хехе.
 			Добавь в них вместо ноликов свои баллы.
 			<b>%s</b>
 			Суммарное максимальное количество баллов: %d
@@ -137,9 +144,9 @@ class Base_Game:
 			Максимальное количество баллов на слово: %d
 		""" % (
 			"\n".join(["Группа %d: %s" % (i, " 0 ".join(w)) for i, w in wordsList.items()]),
-			self._ROUNDS[self.roundNumber]['maxWeightPerRound'],
-			self._ROUNDS[self.roundNumber]['minWeightPerRound'],
-			self._ROUNDS[self.roundNumber]['maxWeightPerWord']
+			self.roundSettings['maxWeightPerRound'],
+			self.roundSettings['minWeightPerRound'],
+			self.roundSettings['maxWeightPerWord']
 		)
 
 	def _splitWordsIntoGroups(self, words, expelSuperfluousWords=True):
@@ -148,28 +155,28 @@ class Base_Game:
 		if savedGroups:
 			return savedGroups
 		random.shuffle(words)
-		groupSize = len(words) if self._ROUNDS[self.roundNumber]['groupSize'] == -1 else self._ROUNDS[self.roundNumber]['groupSize']
+		groupSize = len(words) if self.roundSettings['groupSize'] == -1 else self.roundSettings['groupSize']
 		groups = OrderedDict((i+1, v) for i, v in enumerate(splitList(words, groupSize)))
 		for groupNumber, wordsList in groups.items():
-			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self._ROUNDS[self.roundNumber]['groupSize'] else Group.STATUS_UNDEFINED
+			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self.roundSettings['groupSize'] else Group.STATUS_UNDEFINED
 			for wordInfo in wordsList:
 				Group.addWordToGroup(
 					simpleDictMerge(
-						dict(word_id=wordInfo[1], number=groupNumber, status=status),
+						dict(word_id=wordInfo[0], number=groupNumber, status=status),
 						self.gameState,
 					)
 				)
-		return OrderedDict((i, [w[0] for w in words]) for i, words in groups.items())
+		return OrderedDict((i, [w[1] for w in words]) for i, words in groups.items())
 
 	# def _saveWordIntoGr
 
 	def _addRandomWord(self):
-		if 'randomWordsLimit' not in self._ROUNDS[self.roundNumber]:
+		if 'randomWordsLimit' not in self.roundSettings:
 			return
 		self._refreshGameState()
 		randomWordsCount = 0
 		wordsAdded = 0
-		while wordsAdded < self._ROUNDS[self.roundNumber]['randomWordsLimit']:
+		while wordsAdded < self.roundSettings['randomWordsLimit']:
 			if randomWordsCount > 20:
 				break
 			randomWordsCount += 1
@@ -181,8 +188,8 @@ class Base_Game:
 				player_id=Player.getId(self._RANDOM_PLAYER),
 				game_id=self.game_id,
 				round_id=self.round_id),
-				self._ROUNDS[self.roundNumber]['minWordsPerPlayer'],
-				self._ROUNDS[self.roundNumber]['minWordLength']
+				self.roundSettings['minWordsPerPlayer'],
+				self.roundSettings['minWordLength']
 			)
 			wordsAdded += 1
 

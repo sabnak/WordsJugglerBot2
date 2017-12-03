@@ -5,14 +5,13 @@ from game.word import Word
 
 class Round:
 
-	ROUND_STATUS_PREPARATION = "preparation"
-	ROUND_STATUS_IN_PROGRESS = "in progress"
-	ROUND_STATUS_ENDED = "preparation"
+	STATUS_PREPARATION = "preparation"
+	STATUS_IN_PROGRESS = "in progress"
+	STATUS_ENDED = "ended"
 
 	@staticmethod
 	def getId(game_id):
-		_round = DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s ORDER BY number DESC LIMIT 1", dict(game_id=game_id))
-		return Round._set(game_id, 1) if not _round else _round['id'] if _round['status'] != Round.ROUND_STATUS_ENDED else Round._init(game_id)
+		return Round._init(game_id)
 
 	@staticmethod
 	def get(round_id):
@@ -57,17 +56,20 @@ class Round:
 
 	@staticmethod
 	def _init(game_id):
-		params = dict(game_id=game_id, status=Round.ROUND_STATUS_ENDED)
-		_round = DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s AND status = %(status)s", params)
-		if _round:
-			params['number'] = _round['number'] + 1
-		elif not DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s LIMIT 1", params):
+		params = dict(game_id=game_id, status=Round.STATUS_ENDED)
+		lastRound = DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s ORDER BY number DESC LIMIT 1", dict(game_id=game_id))
+		if not lastRound:
+			return Round._start(game_id, 1)
+		if lastRound['status'] != Round.STATUS_ENDED:
+			return lastRound['id']
+		params['number'] = lastRound['number'] + 1
+		if not DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s LIMIT 1", params):
 			params['number'] = 1
 		if 'number' in params:
-			round_id = Round._set(game_id, params['number'])
+			round_id = Round._start(game_id, params['number'])
 			logging.info("New %d round for game_id %d was started. ID: %s" % (params['number'], game_id, round_id))
 			return round_id
 
 	@staticmethod
-	def _set(game_id, number):
+	def _start(game_id, number):
 		return DB.execute("INSERT INTO round SET game_id = %(game_id)s, number = %(number)s", dict(game_id=game_id, number=number)).lastrowid
