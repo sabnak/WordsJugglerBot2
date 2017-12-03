@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 import sys
+import configparser
 
 sys.setrecursionlimit(3000)
 
@@ -55,10 +56,14 @@ class DB:
 			return row
 		return None
 
+
+config = configparser.ConfigParser()
+config.read("./config/local.cfg")
+
 dbAdapter(dict(
-	adapter="mysql+pymysql",
-	host="localhost",
-	username="root",
-	password="root",
-	database= "words"
+	adapter=config['DB']['adapter'],
+	host=config['DB']['host'],
+	username=config['DB']['username'],
+	password=config['DB']['password'],
+	database=config['DB']['database']
 ))
