@@ -35,6 +35,11 @@ class Word:
 		return True, "Твоё жалкое словцо \"%s\" принято, свинюшка! %s" % (params['word'], additionalMsg)
 
 	@staticmethod
+	def getIdByName(**params):
+		word = DB.getOne("SELECT id FROM word WHERE word = %(word)s AND word.round_id = %(round_id)s AND word.game_id = %(game_id)s", params)
+		return word['id'] if word else None
+
+	@staticmethod
 	def getListByGameId(game_id, player_id=None, fullAccess=False):
 		condition = "player_id = %(player_id)s" if player_id else "status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
@@ -93,6 +98,10 @@ class Word:
 		if errorMsg:
 			return False, errorMsg
 		return True, None
+
+	@staticmethod
+	def isWordBelongToPlayer(**params):
+		return True if DB.getOne("SELECT * FROM word WHERE round_id = %(round_id)s AND word = %(word)s AND player_id = %(player_id)s", params) else False
 
 	@staticmethod
 	def _isWordExist(word):

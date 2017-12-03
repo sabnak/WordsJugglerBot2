@@ -38,6 +38,10 @@ def catchWord(bot, update):
 	sendMsg(bot, update, response)
 
 
+def iAmSoStupid(bot, update):
+	sendMsg(bot, update, "Говори на понятном мне языке. Используй понятные слова.\nВот тебе инструкция: /help")
+
+
 def showMyWordsPerGame(bot, update, args):
 	logging.info(update)
 	game_id = int(args[0]) if args else None
@@ -124,6 +128,16 @@ def getCandidates(bot, update):
 	sendMsg(bot, update, response)
 
 
+def vote(bot, update, args):
+	logging.info(update)
+	string = ' '.join(args).lower()
+	if not string:
+		response = "Ну ты чё. Скинь непустую строчку со своими баллами"
+	else:
+		response = game.vote(update, string)
+	sendMsg(bot, update, response)
+
+
 def sendMsg(bot, update, msg):
 	msg = re.sub(r"(?<=\n)[\s]+", "", msg) if msg else "Мне нечего тебе сказать, чёрт возьми!"
 	bot.send_message(chat_id=update.message.chat_id, text=msg, parse_mode="html")
@@ -139,7 +153,11 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['fight', 'f', 'б'], fight, pass_args=False),
 		CommandHandler(['candidates', 'c', 'к'], getCandidates, pass_args=False),
 		CommandHandler(['ready', 'готов'], setState, pass_args=False),
-		MessageHandler(Filters.text, catchWord)
+		CommandHandler(['vote', 'v', 'голос'], vote, pass_args=True),
+		MessageHandler(Filters.text, catchWord),
+
+
+		MessageHandler(Filters.command, iAmSoStupid)
 	]
 ]
 # dispatcher.add_handler(word_handler)
@@ -152,3 +170,11 @@ def sendMsg(bot, update, msg):
 
 if __name__ == "__main__":
 	updater.start_polling()
+
+# DELETE FROM words.word WHERE id >= 1;
+# DELETE FROM words.game WHERE id >= 1;
+# DELETE FROM words.player WHERE id >= 1;
+# DELETE FROM words.round WHERE id >= 1;
+# DELETE FROM words.groups WHERE id >= 1;
+# DELETE FROM words.player_state WHERE id >= 1;
+# INSERT INTO player SET name = "Жорж", telegram_id = -1;

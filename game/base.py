@@ -2,11 +2,13 @@ from libs.dbAdapter import DB
 import logging
 import random
 from collections import OrderedDict
+import re
 from libs.coll import splitList, simpleDictMerge
 from game.player import Player
 from game.word import Word
 from game.round import Round
 from game.group import Group
+from game.vote import Vote
 
 
 class Base_Game:
@@ -137,21 +139,80 @@ class Base_Game:
 		wordsList = self._splitWordsIntoGroups([word for wordsInfo in wordsByPlayer.values() for word in wordsInfo['words']])
 		return """
 			Вот список всех словцов. Кроме того я добавил в него несколько случайных (а может и нет). Хехе.
-			Добавь в них вместо ноликов свои баллы.
+			Добавь вместо ноликов свои баллы.
 			<b>%s</b>
 			Суммарное максимальное количество баллов: %d
 			Суммарное минимальное количество баллов: %d
 			Максимальное количество баллов на слово: %d
 		""" % (
-			"\n".join(["Группа %d: %s" % (i, " 0 ".join(w)) for i, w in wordsList.items()]),
+			"\n".join(["Группа %d: %s" % (i, " 0 ".join(w)) for i, w in wordsList.items()]) + " 0",
 			self.roundSettings['maxWeightPerRound'],
 			self.roundSettings['minWeightPerRound'],
 			self.roundSettings['maxWeightPerWord']
 		)
 
+	def vote(self, update, weightPlain):
+		self._refreshGameState()
+		player_id = Player.getId(update.message.chat)
+		if self.roundStatus == Round.STATUS_PREPARATION:
+			return "Ещё слишком рано голосовать за словцы! Игра ещё не начата!"
+		if self.roundStatus == Round.STATUS_ENDED:
+			return "Уже поздновато отдавать свой никчёмный голос. Раунд завернёш. Жди начала следующего!"
+		if not re.match(r"^(?:[А-яё]+[\s]*[\d]*[\s]*)+$", weightPlain):
+			return "Ну ё-моё, передай мне свои баллы в правильном формате: \"Словцо 4 Словцо 5\""
+		weightParsed = re.findall(r"(?P<word>[А-яё]+)[\s]*(?P<weight>[\d]+)", weightPlain)
+		responses = []
+		weightPlanned = sum([int(weight) for word, weight in weightParsed])
+		if weightPlanned > self.roundSettings['maxWeightPerRound']:
+			return "Ты распределил слишком много баллов, дурашка (%d/%d)." % (weightPlanned, self.roundSettings['maxWeightPerRound'])
+		for word, weight in weightParsed:
+			weight = int(weight)
+			word_id = Word.getIdByName(word=word, **self.gameState)
+			voteStatus, response = self._isPlayerCanVote(player_id=player_id, weight=weight, word_id=word_id, word=word)
+			if response:
+				responses.append(response)
+			if not voteStatus:
+				continue
+			Vote.set(word_id=word_id, weight=weight, player_id=player_id, **self.gameState)
+			responses.append("Ура! Я успешно записал %d баллов словцу <b>%s</b>. Надеюсь это словцо того стоило." % (weight, word))
+		return "\n".join(responses) + ("\nТы просадил %d/%d" % (Vote.getPlayerSumOfWeightPerRound(player_id=player_id, **self.gameState), self.roundSettings['maxWeightPerRound']))
+
+	def _isPlayerCanVote(self, player_id, weight, word_id, word):
+		groupNumber, groupWords = Group.getGroupByWord(word_id=word_id, **self.gameState)
+		votes, spentWeight = Vote.getPlayerWeightPerRoundByWord(player_id=player_id, **self.gameState)
+		if weight > self.roundSettings['maxWeightPerWord']:
+			return False, "Нельзя наваливать так много баллов одному словцу (%d/%d)." % (weight, self.roundSettings['maxWeightPerWord'])
+		if word_id not in votes and (spentWeight + weight > self.roundSettings['maxWeightPerRound']):
+			return False, """
+				Я не могу навалить %d баллов словцу <b>%s</b>. Ты уже потратил %d/%d на всякий мусор.
+			""" % (weight, word, spentWeight, self.roundSettings['maxWeightPerRound'])
+		if spentWeight >= self.roundSettings['maxWeightPerRound']:
+			if word_id not in votes:
+				return False, """
+					Опомнись! Ты уже потратил все свои баллы (%d/%d), чтобы голосовать за слово <b>%s</b>.
+				""" % (spentWeight, self.roundSettings['maxWeightPerRound'], word)
+			for existedVote in votes.values():
+				respentWeight = spentWeight - (existedVote['weight'] - weight)
+				if existedVote['word_id'] == word_id and weight > existedVote['weight'] and respentWeight > self.roundSettings['maxWeightPerRound']:
+					return False, """
+						Да не хватит тебе баллов, что бы повысить вес этого жалкого словца на столько (%d/%d)
+					""" % (respentWeight, self.roundSettings['maxWeightPerRound'])
+		if groupNumber == -1:
+			return False, "Что-то не то. Слово <b>%s</b> найдено сразу в двух группах. Как же так-то?" % word
+		if not groupNumber:
+			return False, "Не могу найти группу, к которой принадлежит словоцо <b>%s</b>. Буду думать..." % word
+		if weight > 0 and \
+			Word.isWordBelongToPlayer(player_id=player_id, word=word, **self.gameState) and \
+			[word for word in groupWords if not Word.isWordBelongToPlayer(player_id=player_id, word=word, **self.gameState)]:
+			return False, """
+				Ты совесть-то поимей, подлец.
+				Нельзя голосовать за свои словцы (в том числе и за <b>%s</b>), если на выбор есть словцы других игроков
+			""" % word
+		return True, None
+
 	def _splitWordsIntoGroups(self, words, expelSuperfluousWords=True):
 		self._refreshGameState()
-		savedGroups = Group.getGroups(self.gameState)
+		savedGroups = Group.getGroups(**self.gameState)
 		if savedGroups:
 			return savedGroups
 		random.shuffle(words)
@@ -160,12 +221,7 @@ class Base_Game:
 		for groupNumber, wordsList in groups.items():
 			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self.roundSettings['groupSize'] else Group.STATUS_UNDEFINED
 			for wordInfo in wordsList:
-				Group.addWordToGroup(
-					simpleDictMerge(
-						dict(word_id=wordInfo[0], number=groupNumber, status=status),
-						self.gameState,
-					)
-				)
+				Group.addWordToGroup(word_id=wordInfo[0], number=groupNumber, status=status, **self.gameState)
 		return OrderedDict((i, [w[1] for w in words]) for i, words in groups.items())
 
 	# def _saveWordIntoGr

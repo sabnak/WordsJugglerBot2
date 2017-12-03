@@ -28,6 +28,7 @@ def simpleDictMerge(x, y):
 	z.update(y)
 	return z
 
+
 def bestOfMultiple(words, weights, maxWeight=.80):
 	weightsDict = OrderedDict([words[x], [x, y]] for x, y in enumerate([1 / len(words)] * len(words)))
 	pointsDict = dict()
