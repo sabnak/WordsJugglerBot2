@@ -107,8 +107,8 @@ class Base_Game:
 			responseList += response
 			Log.save(data=json.dumps(stats), groupNumber=groupNumber, **self.gameState)
 		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
-		if len(winners) == 1:
-			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0], **self.gameState)
+		if self.roundNumber + 1 not in self._ROUNDS:
+			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
 		responseList += self._getPlainPlayersWeights()
 		return "\n".join(responseList)
 
