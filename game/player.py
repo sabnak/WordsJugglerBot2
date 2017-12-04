@@ -35,7 +35,7 @@ class Player:
 	@staticmethod
 	def getPlayerByWord(**params):
 		return DB.getOne("""
-			SELECT *
+			SELECT player.*
 			FROM player
 			JOIN word ON (player_id = player.id)
 			WHERE round_id = %(round_id)s AND game_id = %(game_id)s AND word = %(word)s
