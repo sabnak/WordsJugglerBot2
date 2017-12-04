@@ -1,6 +1,6 @@
 from game.base import Base_Game
 from libs.coll import bestOfMultiple
-
+from game.player import Player
 
 class Game(Base_Game):
 
@@ -29,7 +29,8 @@ class Game(Base_Game):
 		response = [
 			"Баллы:\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
 			"Вероятности:\n%s" % "\n".join(["%.2f: %s" % (p[1], w) for w, p in stats['weights'].items()]),
-			"Слово-победитель: <b>%s</b>" % winnerWord
+			"Слово-победитель: <b>%s</b>" % winnerWord,
+			"Игрок-победитель: <b>%s</b>" % Player.getPlayerByWord(word=winnerWord, **self.gameState)['name']
 		]
 		return winnerWord, stats, response
 

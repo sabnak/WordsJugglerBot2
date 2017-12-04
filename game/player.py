@@ -33,6 +33,15 @@ class Player:
 		""", params)
 
 	@staticmethod
+	def getPlayerByWord(**params):
+		return DB.getOne("""
+			SELECT *
+			FROM player
+			JOIN word ON (player_id = player.id)
+			WHERE round_id = %(round_id)s AND game_id = %(game_id)s AND word = %(word)s
+		""", params)
+
+	@staticmethod
 	def _addPlayer(playerInfo):
 		name = Player._buildPlayerName(playerInfo)
 		player_id = DB.execute(
