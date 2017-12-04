@@ -28,7 +28,7 @@ class Group:
 		JOIN word ON (word.id = groups.word_id)
 		JOIN player p1 ON (p1.id = word.player_id)
 		LEFT JOIN vote ON (vote.word_id = groups.word_id AND vote.game_id = %(game_id)s AND vote.round_id = %(round_id)s)
-		JOIN player p2 ON (p2.id = vote.player_id)
+		LEFT JOIN player p2 ON (p2.id = vote.player_id)
 		WHERE groups.game_id = %(game_id)s AND groups.round_id = %(round_id)s
 		""" + numberCondition, params)
 		if not groupByGroupNumber:
