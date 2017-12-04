@@ -13,7 +13,7 @@ class Game(Base_Game):
 			maxWordsPerPlayer=1,
 			minWordLength=5,
 			maxWordLength=15,
-			maxWeightPerWord=2,
+			maxWeightPerWord=4,
 			maxWeightPerRound=4,
 			minWeightPerRound=4,
 			minPlayers=3,
