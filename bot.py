@@ -2,14 +2,12 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 from game.typeA import Game
 import re
-import configparser
+from libs.coll import Config
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
-config = configparser.ConfigParser()
-config.read("./config/local.cfg")
 
-updater = Updater(token=config['TELEGRAM']['token'])
+updater = Updater(token=Config.get('TELEGRAM.token'))
 dispatcher = updater.dispatcher
 game = Game()
 
@@ -186,6 +184,7 @@ def sendMsg(bot, update, msg):
 
 if __name__ == "__main__":
 	updater.start_polling()
+	pass
 
 # DELETE FROM words.word WHERE id >= 1;
 # DELETE FROM words.game WHERE id >= 1;

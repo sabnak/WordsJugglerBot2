@@ -2,6 +2,27 @@ import re
 from collections import OrderedDict
 from numpy import array
 from numpy.random import choice
+import configparser
+import os
+
+
+class Config:
+
+	values = dict()
+
+	@staticmethod
+	def build():
+		Config.values = configparser.ConfigParser()
+		Config.values.read("./config/local.cfg")
+
+	@staticmethod
+	def get(path):
+		section, name = path.split(".")
+		try:
+			if section:
+				return Config.values[section][name]
+		except KeyError:
+			return os.environ.get("%s.%s" % (section, name), None)
 
 
 def addDict(filePath):
@@ -55,3 +76,6 @@ def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	winner = choice(words, p=weights, replace=False)
 	response.append("Слово-победитель: <b>%s</b>" % winner)
 	return winner, dict(words=words, points=pointsDict, weights=weightsDict)
+
+
+Config.build()
