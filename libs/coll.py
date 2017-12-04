@@ -54,7 +54,6 @@ def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	weightsDict = OrderedDict([words[x], [x, y]] for x, y in enumerate([1 / len(words)] * len(words)))
 	pointsDict = dict()
 	minWeight = (1 - maxWeight) / (len(words) - 1)
-	response = []
 	for author, weightsParsed in weights.items():
 		for word, weight in weightsParsed:
 			if word not in pointsDict:
@@ -68,14 +67,13 @@ def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	weights = array([x[1] for x in weightsDict.values()])
 	for i, weight in enumerate(weights):
 		# weights[i] += weights[i]/100*100
-		if weight > maxWeight: weights[i] = maxWeight
-		if weight < minWeight: weights[i] = minWeight
+		if weight > maxWeight:
+			weights[i] = maxWeight
+		if weight < minWeight:
+			weights[i] = minWeight
 	weights /= weights.sum()
-	response.append("Баллы:\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in pointsDict.items()]))
-	response.append("Вероятности:\n%s" % "\n".join(["%.2f: %s" % (p[1], w) for w, p in weightsDict.items()]))
 	winner = choice(words, p=weights, replace=False)
-	response.append("Слово-победитель: <b>%s</b>" % winner)
-	return winner, dict(words=words, points=pointsDict, weights=weightsDict)
+	return winner, dict(words=words, points=pointsDict, weights=OrderedDict([word, [info[0], weights[info[0]]]] for word, info in weightsDict.items()))
 
 
 Config.build()

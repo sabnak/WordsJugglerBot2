@@ -75,20 +75,25 @@ class Base_Game:
 			wordsList = []
 			weightsList = dict()
 			for info in group:
+				if info['telegram_id'] != self._RANDOM_PLAYER['id']:
+					playerSpentWeight = Vote.getPlayerSumOfWeightPerRound(player_id=info['player_id'], **self.gameState)
+					if playerSpentWeight < self.roundSettings['maxWeightPerRound']:
+						lazyPlayers[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
+					if playerSpentWeight > self.roundSettings['maxWeightPerRound']:
+						cheaters[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
 				if info['word'] not in wordsByPlayer:
 					wordsByPlayer[info['word']] = info
 				if info['word'] not in wordsList:
 					wordsList.append(info['word'])
-				if info['player_id'] not in weightsList:
-					weightsList[info['electorPlayer_id']] = []
-				weightsList[info['electorPlayer_id']].append((info['word'], info['weight']))
-				if info['telegram_id'] == self._RANDOM_PLAYER['id']:
-					continue
-				playerSpentWeight = Vote.getPlayerSumOfWeightPerRound(player_id=info['player_id'], **self.gameState)
-				if playerSpentWeight < self.roundSettings['maxWeightPerRound']:
-					lazyPlayers[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
-				if playerSpentWeight > self.roundSettings['maxWeightPerRound']:
-					cheaters[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
+				if not info['weight']:
+					electorPlayer_id = -2 if not info['electorPlayer_id'] else info['electorPlayer_id']
+					weight = 0
+				else:
+					electorPlayer_id = info['electorPlayer_id']
+					weight = info['weight']
+				if electorPlayer_id not in weightsList:
+					weightsList[electorPlayer_id] = []
+				weightsList[electorPlayer_id].append((info['word'], weight))
 			preparedGroups[groupNumber] = dict(words=wordsList, weights=weightsList)
 		if lazyPlayers or cheaters:
 			responseList.append("Ничего у нас не выйдет!")
@@ -103,13 +108,15 @@ class Base_Game:
 		winners = []
 		for groupNumber, group in preparedGroups.items():
 			responseList.append("<b>Группа %d</b>" % groupNumber)
+			print(group)
 			winnerWord, stats, response = self._start(group['words'], group['weights'])
 			winners.append(wordsByPlayer[winnerWord]['player_id'])
 			responseList += response
-			Log.save(data=json.dumps(stats), groupNumber=groupNumber, **self.gameState)
-		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
+			# Log.save(data=json.dumps(stats), groupNumber=groupNumber, **self.gameState)
+		# Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
 		if self.roundNumber + 1 not in self._ROUNDS:
-			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
+			# self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
+			pass
 		responseList += self._getPlainPlayersWeights()
 		return "\n".join(responseList)
 
@@ -220,7 +227,9 @@ class Base_Game:
 			return "Слишком много тормозов в игре. Я не могу показать тебе словцы, пока все не будут готовы. Список тормозов:\n%s" % " ".join(unreadyPlayers)
 		if self.roundStatus == Round.STATUS_PREPARATION:
 			Round.updateRoundStatus(round_id=self.round_id, status=Round.STATUS_IN_PROGRESS)
+		print(wordsByPlayer)
 		wordsList = self._splitWordsIntoGroups([word for wordsInfo in wordsByPlayer.values() for word in wordsInfo['words']])
+		print(wordsList)
 		return """
 			Вот список всех словцов. Кроме того я добавил в него несколько случайных (а может и нет). Хехе.
 			Добавь вместо ноликов свои баллы.
@@ -328,6 +337,7 @@ class Base_Game:
 		groupSize = len(words) if self.roundSettings['groupSize'] == -1 else self.roundSettings['groupSize']
 		groups = OrderedDict((i+1, v) for i, v in enumerate(splitList(words, groupSize)))
 		for groupNumber, wordsList in groups.items():
+			print(wordsList)
 			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self.roundSettings['groupSize'] else Group.STATUS_UNDEFINED
 			for wordInfo in wordsList:
 				Group.addWordToGroup(word_id=wordInfo[0], number=groupNumber, status=status, player_id=wordInfo[2], **self.gameState)

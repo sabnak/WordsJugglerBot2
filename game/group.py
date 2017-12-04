@@ -16,7 +16,8 @@ class Group:
 		for groupRow in groupsRows:
 			if groupRow['number'] not in groups:
 				groups[groupRow['number']] = []
-			groups[groupRow['number']].append(groupRow['word'])
+			if groupRow['word'] not in groups[groupRow['number']]:
+				groups[groupRow['number']].append(groupRow['word'])
 		return groups
 
 	@staticmethod
