@@ -12,7 +12,7 @@ class dbAdapter:
 		if dbAdapter.__INSTANCE is None:
 			dbAdapter.__INSTANCE = object.__new__(cls)
 			conn = '%(adapter)s://%(username)s:%(password)s@%(host)s/%(database)s?charset=utf8'
-			dbAdapter.__INSTANCE.db = create_engine(conn % params, pool_size=50, max_overflow=0, pool_recycle=1800, pool_timeout=120)
+			dbAdapter.__INSTANCE.db = create_engine(conn % params, pool_recycle=60)
 			dbAdapter.__INSTANCE.db.execute("SET SESSION wait_timeout = 115200")
 		'''
 		rows = dbAdapter.__INSTANCE.db.execute("SELECT CONNECTION_ID() as id;")
