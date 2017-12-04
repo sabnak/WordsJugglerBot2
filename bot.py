@@ -85,7 +85,7 @@ def getRandomWord(bot, update):
 	if not word:
 		response = "Очень странно. Не могу получить случайное словцо!"
 	else:
-		response = "Вот твоё случайное словцо: %s" % word.lower()
+		response = "Вот твоё случайное словцо:\n<b>%s</b>" % word.lower()
 	response += "Попробуй ещё: /r"
 	sendMsg(bot, update, response)
 

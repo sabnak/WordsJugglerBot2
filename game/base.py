@@ -147,7 +147,6 @@ class Base_Game:
 			return "Охохо. Ещё не было завершено ни одной игры"
 		log = Base_Game._getGameLog(game['id'])
 
-
 	@staticmethod
 	def getGameLog(game_id):
 		log = Base_Game._getGameLog(game_id)
