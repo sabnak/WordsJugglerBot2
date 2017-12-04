@@ -179,7 +179,7 @@ class Base_Game:
 		attempt = 1
 		while attempt <= attemptsLimit:
 			attempt += 1
-			word = random.choice(list(open(self._DICTIONARIES[dictionaryName])))
+			word = random.choice(list(open(self._DICTIONARIES[dictionaryName], encoding="utf-8")))
 			if Word.isWordValid(word, minLength)[0]:
 				return word
 		return None
