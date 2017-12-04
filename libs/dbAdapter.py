@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 import sys
-import configparser
+from libs.coll import Config
 
 sys.setrecursionlimit(3000)
 
@@ -57,13 +57,10 @@ class DB:
 		return None
 
 
-config = configparser.ConfigParser()
-config.read("./config/local.cfg")
-
 dbAdapter(dict(
-	adapter=config['DB']['adapter'],
-	host=config['DB']['host'],
-	username=config['DB']['username'],
-	password=config['DB']['password'],
-	database=config['DB']['database']
+	adapter=Config.get('DB.adapter'),
+	host=Config.get('DB.host'),
+	username=Config.get('DB.username'),
+	password=Config.get('DB.password'),
+	database=Config.get('DB.database'),
 ))
