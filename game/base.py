@@ -22,7 +22,7 @@ class Base_Game:
 	_ROUNDS = dict()
 
 	_DICTIONARIES = {
-		"ushakov": r"f:\WordsJugglerBot\dictionaries\ushakov_reb.txt"
+		"ushakov": r"./dictionaries/ushakov_reb.txt"
 	}
 
 	_RANDOM_PLAYER = {'id': -1, 'first_name': "Жорж"}
