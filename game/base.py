@@ -65,6 +65,7 @@ class Base_Game:
 		groups = Group.get(groupByGroupNumber=True, **self.gameState)
 		if self.roundStatus != Round.STATUS_IN_PROGRESS:
 			return "Не надо огня! Рано ещё начинать рубку. Предлагайте свои словцы и голосуйте за другие"
+		# self.isEveryOneVoted()
 		lazyPlayers = dict()
 		cheaters = dict()
 		responseList = []
@@ -111,6 +112,10 @@ class Base_Game:
 			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
 		responseList += self._getPlainPlayersWeights()
 		return "\n".join(responseList)
+
+	def isEveryOneVoted(self):
+		players = Player.getPlayerByRound(**self.gameState)
+		votes = Vote.getWeightPerRoundByPlayer(**self.gameState)
 
 	def updateWord(self, oldWord, newWord, update):
 		self._refreshGameState()
@@ -160,12 +165,9 @@ class Base_Game:
 			return False
 		Log.get(game_id=game['id'])
 
-	@staticmethod
-	def getPlayerWordsByRound(update, round_id=None, fullAccess=False):
+	def getPlayerWordsByRound(self, update, round_id=None, fullAccess=False):
 		player_id = Player.getId(update.message.chat)
-		if not round_id:
-			game_id, round_id = Base_Game._getId(doNotInitNewGame=True)
-		return Word.getListByRoundId(round_id, player_id, fullAccess)
+		return Word.getListByRoundId(fullAccess=fullAccess, round_id=round_id, player_id=player_id, **self.gameState)
 
 	@staticmethod
 	def getPlayerWordsByGame(update, game_id=None, fullAccess=False):
@@ -188,7 +190,7 @@ class Base_Game:
 		if self.roundStatus != Round.STATUS_PREPARATION:
 			return "Поздняк метаться. Раунд уже запущен. Молись!"
 		player_id = Player.getId(update.message.chat)
-		playerWords = Word.getListByRoundId(round_id=self.round_id, player_id=player_id)
+		playerWords = Word.getListByRoundId(player_id=player_id, **self.gameState)
 		if len(playerWords) < self.roundSettings['minWordsPerPlayer']:
 			return "Надо предложить побольше словцов, чтобы быть готовым. Осталось предложить: %d/%d" % (len(playerWords), self.roundSettings['minWordsPerPlayer'])
 		return "Ты больше не готов к игре в этом раунде, трусиха" if not Player.setState(player_id=player_id, round_id=self.round_id) else \
@@ -196,8 +198,9 @@ class Base_Game:
 
 	def getCandidates(self, update):
 		self._refreshGameState()
-		fullInfoWordsList = Word.getListByRoundId(self.round_id, fullAccess=True)
+		fullInfoWordsList = Word.getListByRoundId(fullAccess=True, **self.gameState)
 		wordsByPlayer = dict()
+		self._addRandomWord()
 		for wordInfo in fullInfoWordsList:
 			if wordInfo['player_id'] not in wordsByPlayer:
 				wordsByPlayer[wordInfo['player_id']] = dict(
@@ -207,7 +210,7 @@ class Base_Game:
 					telegram_id=wordInfo['telegram_id'],
 					player_id=wordInfo['player_id'],
 				)
-			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word']))
+			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word'], wordInfo['player_id']))
 		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] != self._RANDOM_PLAYER['id']]
 		if len(wordsByPlayer) < self.roundSettings['minPlayers']:
 			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer), self.roundSettings['minPlayers'])
@@ -217,7 +220,6 @@ class Base_Game:
 			return "Слишком много тормозов в игре. Я не могу показать тебе словцы, пока все не будут готовы. Список тормозов:\n%s" % " ".join(unreadyPlayers)
 		if self.roundStatus == Round.STATUS_PREPARATION:
 			Round.updateRoundStatus(round_id=self.round_id, status=Round.STATUS_IN_PROGRESS)
-		self._addRandomWord()
 		wordsList = self._splitWordsIntoGroups([word for wordsInfo in wordsByPlayer.values() for word in wordsInfo['words']])
 		return """
 			Вот список всех словцов. Кроме того я добавил в него несколько случайных (а может и нет). Хехе.
@@ -328,13 +330,13 @@ class Base_Game:
 		for groupNumber, wordsList in groups.items():
 			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self.roundSettings['groupSize'] else Group.STATUS_UNDEFINED
 			for wordInfo in wordsList:
-				Group.addWordToGroup(word_id=wordInfo[0], number=groupNumber, status=status, **self.gameState)
+				Group.addWordToGroup(word_id=wordInfo[0], number=groupNumber, status=status, player_id=wordInfo[2], **self.gameState)
 		return OrderedDict((i, [w[1] for w in words]) for i, words in groups.items())
 
 	# def _saveWordIntoGr
 
 	def _addRandomWord(self):
-		if 'randomWordsLimit' not in self.roundSettings:
+		if 'randomWordsLimit' not in self.roundSettings or Word.getListByRoundId(telegram_id=Base_Game._RANDOM_PLAYER['id'], **self.gameState):
 			return
 		self._refreshGameState()
 		randomWordsCount = 0

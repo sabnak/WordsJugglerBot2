@@ -61,7 +61,7 @@ class Group:
 	def addWordToGroup(**params):
 		# lastGroupNumber = Group._getLastGroupNumber(params)
 		# params['number'] = 1 if not lastGroupNumber else lastGroupNumber+1
-		DB.execute("INSERT INTO groups SET word_id=%(word_id)s, game_id=%(game_id)s, round_id=%(round_id)s, number=%(number)s, status=%(status)s", params)
+		DB.execute("INSERT INTO groups SET word_id=%(word_id)s, player_id = %(player_id)s, game_id=%(game_id)s, round_id=%(round_id)s, number=%(number)s, status=%(status)s", params)
 
 	@staticmethod
 	def _getLastGroupNumber(params):

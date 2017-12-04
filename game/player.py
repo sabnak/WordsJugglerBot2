@@ -24,6 +24,15 @@ class Player:
 		return 0 if not playerState else playerState['isReady']
 
 	@staticmethod
+	def getPlayerByRound(**params):
+		return DB.getList("""
+			SELECT * 
+			FROM player
+			JOIN round ON (player_id = player.id)
+			WHERE round.id = %(round_id)s
+		""", params)
+
+	@staticmethod
 	def _addPlayer(playerInfo):
 		name = Player._buildPlayerName(playerInfo)
 		player_id = DB.execute(

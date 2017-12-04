@@ -50,15 +50,15 @@ class Word:
 		""" + condition, dict(game_id=game_id, player_id=player_id))
 
 	@staticmethod
-	def getListByRoundId(round_id, player_id=None, fullAccess=False):
-		condition = " AND word.player_id = %(player_id)s" if player_id else " AND round.status = 'ended'" if not fullAccess else ""
+	def getListByRoundId(fullAccess=False, **params):
+		condition = " AND word.player_id = %(player_id)s" if 'player_id' in params else " AND player.telegram_id = %(telegram_id)s" if 'telegram_id' in params else " AND round.status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
 		SELECT word.*, player.name, player.telegram_id, round.number
 		FROM word
 		JOIN round ON (round.id = word.round_id)
 		JOIN player ON (player.id = word.player_id)
 		WHERE word.round_id = %(round_id)s
-		""" + condition, dict(round_id=round_id, player_id=player_id))
+		""" + condition, params)
 
 	@staticmethod
 	def update(wordMinLength, **params):
