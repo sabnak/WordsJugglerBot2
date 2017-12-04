@@ -41,7 +41,7 @@ class Word:
 
 	@staticmethod
 	def getListByGameId(game_id, player_id=None, fullAccess=False):
-		condition = "player_id = %(player_id)s" if player_id else "status = 'ended'" if not fullAccess else ""
+		condition = "word.player_id = %(player_id)s" if player_id else "round.status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
 		SELECT word.*, round.id round_id, round.number
 		FROM word
@@ -51,7 +51,7 @@ class Word:
 
 	@staticmethod
 	def getListByRoundId(round_id, player_id=None, fullAccess=False):
-		condition = " AND player_id = %(player_id)s" if player_id else " AND status = 'ended'" if not fullAccess else ""
+		condition = " AND word.player_id = %(player_id)s" if player_id else " AND round.status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
 		SELECT word.*, player.name, player.telegram_id, player.id player_id, round.number, round.id round_id
 		FROM word
