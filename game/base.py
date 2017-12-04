@@ -108,7 +108,6 @@ class Base_Game:
 		winners = []
 		for groupNumber, group in preparedGroups.items():
 			responseList.append("<b>Группа %d</b>" % groupNumber)
-			print(group)
 			winnerWord, stats, response = self._start(group['words'], group['weights'])
 			winners.append(wordsByPlayer[winnerWord]['player_id'])
 			responseList += response
@@ -227,9 +226,7 @@ class Base_Game:
 			return "Слишком много тормозов в игре. Я не могу показать тебе словцы, пока все не будут готовы. Список тормозов:\n%s" % " ".join(unreadyPlayers)
 		if self.roundStatus == Round.STATUS_PREPARATION:
 			Round.updateRoundStatus(round_id=self.round_id, status=Round.STATUS_IN_PROGRESS)
-		print(wordsByPlayer)
 		wordsList = self._splitWordsIntoGroups([word for wordsInfo in wordsByPlayer.values() for word in wordsInfo['words']])
-		print(wordsList)
 		return """
 			Вот список всех словцов. Кроме того я добавил в него несколько случайных (а может и нет). Хехе.
 			Добавь вместо ноликов свои баллы.
@@ -337,7 +334,6 @@ class Base_Game:
 		groupSize = len(words) if self.roundSettings['groupSize'] == -1 else self.roundSettings['groupSize']
 		groups = OrderedDict((i+1, v) for i, v in enumerate(splitList(words, groupSize)))
 		for groupNumber, wordsList in groups.items():
-			print(wordsList)
 			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self.roundSettings['groupSize'] else Group.STATUS_UNDEFINED
 			for wordInfo in wordsList:
 				Group.addWordToGroup(word_id=wordInfo[0], number=groupNumber, status=status, player_id=wordInfo[2], **self.gameState)
