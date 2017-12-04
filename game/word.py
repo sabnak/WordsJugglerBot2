@@ -53,7 +53,7 @@ class Word:
 	def getListByRoundId(round_id, player_id=None, fullAccess=False):
 		condition = " AND word.player_id = %(player_id)s" if player_id else " AND round.status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
-		SELECT word.*, player.name, player.telegram_id, player.id player_id, round.number, round.id round_id
+		SELECT word.*, player.name, player.telegram_id, round.number
 		FROM word
 		JOIN round ON (round.id = word.round_id)
 		JOIN player ON (player.id = word.player_id)
