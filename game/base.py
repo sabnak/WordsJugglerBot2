@@ -168,9 +168,17 @@ class Base_Game:
 	def updateWord(self, oldWord, newWord, update):
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
+		if self.roundStatus == Round.STATUS_IN_PROGRESS:
+			return "Ахаха. Раунд-то уже начался. Поздно теперь крутить себе соски. Надейся на лучшее!"
 		if Player.getState(player_id=player_id, **self.gameState):
 			return "Ты не можешь обновить своё убогое словцо, если ты уже приготовился играть, вонючка!"
-		return Word.update(oldWord=oldWord, newWord=newWord, player_id=player_id, round_id=self.round_id, wordMinLength=self.roundSettings['minWordLength'])
+		return Word.update(
+			oldWord=oldWord,
+			newWord=newWord,
+			player_id=player_id,
+			wordMinLength=self.roundSettings['minWordLength'],
+			**self.gameState
+		)
 
 	@staticmethod
 	def get(game_id=None):

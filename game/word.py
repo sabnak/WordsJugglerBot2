@@ -77,22 +77,20 @@ class Word:
 		params['newWord'] = params['newWord'].lower()
 		if params['newWord'] == params['oldWord']:
 			return "И ты прислал два одинаковых слова... Зачем ты так глуп, а?"
-		if not DB.getOne("""
-			SELECT word.*, round.id round_id, round.number
+		oldWord = DB.getOne("""
+			SELECT *
 			FROM word
-			JOIN round ON (round.id = round_id)
-			WHERE word = %(oldWord)s AND player_id = %(player_id)s AND status='preparation'
-		""", params):
+			WHERE word = %(oldWord)s AND player_id = %(player_id)s AND round_id = %(round_id)s AND game_id = %(game_id)s
+		""", params)
+		if not oldWord:
 			return "У тебя нет такого словца в последнем раунде или он уже завершён, дурында!"
 		status, response = Word.isWordValid(word=params['newWord'], wordMinLength=wordMinLength)
 		if not status:
 			return response
 		affectedRows = DB.execute("""
 			UPDATE word
-			JOIN round ON (round.id = round_id)
-			SET word = %(newWord)s
-			WHERE word = %(oldWord)s AND player_id = %(player_id)s AND status='preparation'
-		""", params).rowcount
+			SET word = '%s'
+			WHERE id = %d""" % (params['newWord'], oldWord['id'])).rowcount
 		return "Хм... Я не смог обновить словцо. Интересно почему?" if not affectedRows else "Словцо успешно обновлено. Надеюсь, оно было получше прежнего"
 
 	@staticmethod
