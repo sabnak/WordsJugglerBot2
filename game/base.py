@@ -407,7 +407,8 @@ class Base_Game:
 	# def _saveWordIntoGr
 
 	def _addRandomWord(self):
-		if 'randomWordsLimit' not in self.roundSettings or Word.getListByRoundId(telegram_id=Base_Game._RANDOM_PLAYER['id'], **self.gameState):
+		if 'randomWordsLimit' not in self.roundSettings or not self.roundSettings['randomWordsLimit'] or \
+				Word.getListByRoundId(telegram_id=Base_Game._RANDOM_PLAYER['id'], **self.gameState):
 			return
 		self._refreshGameState()
 		randomWordsCount = 0

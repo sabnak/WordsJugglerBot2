@@ -1,11 +1,9 @@
 from game.base import Base_Game
 from libs.coll import bestOfMultipleSmart
-from game.player import Player
+
 
 class Game(Base_Game):
 
-	_WORDS_LIMIT = 2
-	_WORD_MIN_LENGTH = 5
 	_ROUNDS = {
 		1:
 		dict(
@@ -25,8 +23,6 @@ class Game(Base_Game):
 	}
 
 	def _start(self, words, weights):
-		print(words)
-		print(weights)
 		winnerWord, stats = bestOfMultipleSmart(words, weights)
 		return winnerWord, stats
 
