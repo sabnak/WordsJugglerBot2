@@ -126,6 +126,25 @@ def fight(bot, update):
 	sendMsg(bot, update, response)
 
 
+def getGameResults(bot, update, args):
+	logging.info(update)
+	if not args:
+		game_id = None
+	elif len(args) > 1:
+		return """
+			Укажи ID <b>одной</b> игры, результаты которой ты хочешь посмотреть.
+			Или оставь поле пустым, чтобы посмотреть результаты последней игры
+		"""
+	else:
+		try:
+			game_id = int(args[0])
+		except ValueError:
+			sendMsg(bot, update, "ID игры состоит из одних цифр, дуралей.")
+			return
+	response = game.getLastGameLog() if not game_id else game.getGameLog(game_id)
+	sendMsg(bot, update, response)
+
+
 def getCandidates(bot, update):
 	logging.info(update)
 	response = game.getCandidates(update)
@@ -168,6 +187,7 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['ready', 'готов'], setState, pass_args=False),
 		CommandHandler(['vote', 'v', 'голос', 'г'], vote, pass_args=True),
 		CommandHandler(['vote_info', 'vi', 'голос_инфо', 'ги'], getMyVotes),
+		CommandHandler(['game_result', 'gr', 'результаты_игры', 'ри'], getGameResults, pass_args=True),
 		MessageHandler(Filters.text, catchWord),
 
 

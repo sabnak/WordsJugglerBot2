@@ -24,7 +24,7 @@ class Group:
 	def get(groupByGroupNumber=False, **params):
 		numberCondition = " AND number = %(number)s" if 'number' in params else ""
 		groupsList = DB.getList("""
-		SELECT groups.id, number, word, p1.id player_id, p1.name, p1.telegram_id, weight, p2.id electorPlayer_id, p2.name electorName
+		SELECT groups.id group_id, number, word, word.id word_id, p1.id player_id, p1.name, p1.telegram_id, weight, p2.id electorPlayer_id, p2.name electorName
 		FROM groups
 		JOIN word ON (word.id = groups.word_id)
 		JOIN player p1 ON (p1.id = word.player_id)

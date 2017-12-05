@@ -26,12 +26,6 @@ class Game(Base_Game):
 
 	def _start(self, words, weights):
 		winnerWord, stats = bestOfMultiple(words, weights, percentPerPoint=self.roundSettings['percentPerPoint'])
-		response = [
-			"Баллы:\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
-			"Вероятности:\n%s" % "\n".join(["%.2f: %s" % (p[1], w) for w, p in stats['weights'].items()]),
-			"Слово-победитель: <b>%s</b>" % winnerWord,
-			"Игрок-победитель: <b>%s</b>" % Player.getPlayerByWord(word=winnerWord, **self.gameState)['name']
-		]
-		return winnerWord, stats, response
+		return winnerWord, stats
 
 

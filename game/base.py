@@ -107,21 +107,49 @@ class Base_Game:
 		]
 		winners = []
 		for groupNumber, group in preparedGroups.items():
-			responseList.append("<b>Группа %d</b>" % groupNumber)
-			winnerWord, stats, response = self._start(group['words'], group['weights'])
+			winnerWord, stats = self._start(group['words'], group['weights'])
 			winners.append(wordsByPlayer[winnerWord]['player_id'])
-			responseList += response
-			# Log.save(data=json.dumps(stats), groupNumber=groupNumber, **self.gameState)
-		# Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
+			responseList += self._getPrettyGroupResultsList(stats, winnerWord, groupNumber, **self.gameState)
+			Log.save(
+				data=json.dumps(stats),
+				group_id=wordsByPlayer[winnerWord]['group_id'],
+				winnerPlayer_id=wordsByPlayer[winnerWord]['player_id'],
+				winnerWord_id=wordsByPlayer[winnerWord]['word_id'],
+				**self.gameState
+			)
+		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
 		if self.roundNumber + 1 not in self._ROUNDS:
-			# self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
-			pass
+			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
 		responseList += self._getPlainPlayersWeights()
 		return "\n".join(responseList)
 
-	def isEveryOneVoted(self):
-		players = Player.getPlayerByRound(**self.gameState)
-		votes = Vote.getWeightPerRoundByPlayer(**self.gameState)
+	@staticmethod
+	def _getPrettyGameResults(gamesLog):
+		responseList = []
+		for game_id, gameInfo in gamesLog.items():
+			responseList.append("Лог игры ID <b>%d</b> от %s" % (game_id, gameInfo['createDate']))
+			for round_id, roundInfo in gameInfo['rounds'].items():
+				responseList.append("Раунд № <b>%d</b>" % roundInfo['number'])
+				for group_id, groupInfo in roundInfo['groups'].items():
+					responseList.append("Группа № <b>%d</b>" % groupInfo['number'])
+					responseList += Base_Game._getPrettyGroupResultsList(
+						stats=groupInfo['data'],
+						winnerWord=groupInfo['winnerWord'],
+						groupNumber=groupInfo['number'],
+						game_id=game_id,
+						round_id=round_id
+					)
+		return "\n".join(responseList)
+
+	@staticmethod
+	def _getPrettyGroupResultsList(stats, winnerWord, groupNumber, **gameState):
+		return [
+			"<b>Группа %d</b>" % groupNumber,
+			"Баллы:\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
+			"Вероятности:\n%s" % "\n".join(["%.2f: %s" % (p[1], w) for w, p in stats['weights'].items()]),
+			"Слово-победитель: <b>%s</b>" % winnerWord,
+			"Игрок-победитель: <b>%s</b>" % Player.getPlayerByWord(word=winnerWord, **gameState)['name']
+		]
 
 	def updateWord(self, oldWord, newWord, update):
 		self._refreshGameState()
@@ -152,24 +180,25 @@ class Base_Game:
 		return game
 
 	@staticmethod
-	def getLastGameLog():
-		game = DB.getOne("SELECT * FROM game WHERE state = '%s' ORDER BY id DESC")
-		if not game:
-			return "Охохо. Ещё не было завершено ни одной игры"
-		log = Base_Game._getGameLog(game['id'])
+	def getLastGameLog(status=STATUS_ENDED):
+		return Base_Game.getGameLog(game_id=None, status=status)
 
 	@staticmethod
-	def getGameLog(game_id):
-		log = Base_Game._getGameLog(game_id)
+	def getGameLog(game_id, status=STATUS_ENDED):
+		log = Base_Game._getGameLog(game_id=game_id, status=status)
 		if not log:
-			return "Не получается найти игру с ID <b>%d</b>" % game_id
+			return (
+				("Не получается найти лог игры с ID <b>%d</b>." % game_id) if game_id
+				else "Не получается найти лог последней игры.") \
+				+ " Возможно, игра ещё не была завершена?"
+		return Base_Game._getPrettyGameResults(log)
 
 	@staticmethod
-	def _getGameLog(game_id):
-		game = Base_Game._get(game_id)
+	def _getGameLog(**params):
+		game = Base_Game._get(**params)
 		if not game:
-			return False
-		Log.get(game_id=game['id'])
+			return None
+		return Log.get(game_id=game['id'])
 
 	def getPlayerWordsByRound(self, update, round_id=None, fullAccess=False):
 		player_id = Player.getId(update.message.chat)
@@ -379,8 +408,15 @@ class Base_Game:
 		return game_id, Round.getId(game_id)
 
 	@staticmethod
-	def _get(game_id):
-		return DB.getOne("SELECT * FROM game WHERE id = %(game_id)s" % dict(game_id=game_id))
+	def _get(game_id=None, status=None):
+		if not game_id and not status:
+			return None
+		condition = ""
+		if status:
+			condition += " AND status = '%s'" % status
+		if game_id:
+			condition += " AND id = %d" % game_id
+		return DB.getOne("SELECT * FROM game WHERE 1 " + condition + " ORDER BY id DESC")
 
 	@staticmethod
 	def _update(**params):
