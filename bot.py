@@ -203,8 +203,8 @@ commandsList = """
 """
 
 if __name__ == "__main__":
-	# updater.start_polling()
-	print(getPlainCommandsList())
+	updater.start_polling()
+	# print(getPlainCommandsList())
 	pass
 
 # DELETE FROM words.word WHERE id >= 1;
