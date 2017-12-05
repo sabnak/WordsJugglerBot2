@@ -267,7 +267,10 @@ class Base_Game:
 		fullInfoWordsList = Word.getListByRoundId(fullAccess=True, **self.gameState)
 		wordsByPlayer = dict()
 		self._addRandomWord()
+		randomPlayersList = []
 		for wordInfo in fullInfoWordsList:
+			if wordInfo['telegram_id'] == Base_Game._RANDOM_PLAYER['id'] and Base_Game._RANDOM_PLAYER['id'] not in randomPlayersList:
+				randomPlayersList.append(Base_Game._RANDOM_PLAYER['id'])
 			if wordInfo['player_id'] not in wordsByPlayer:
 				wordsByPlayer[wordInfo['player_id']] = dict(
 					words=[],
@@ -278,10 +281,10 @@ class Base_Game:
 				)
 			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word'], wordInfo['player_id']))
 		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] != self._RANDOM_PLAYER['id']]
-		if len(wordsByPlayer) < self.roundSettings['minPlayers']:
-			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer), self.roundSettings['minPlayers'])
-		if len(wordsByPlayer) > self.roundSettings['maxPlayers']:
-			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer), self.roundSettings['maxPlayers'])
+		if len(wordsByPlayer) < self.roundSettings['minPlayers'] + len(randomPlayersList):
+			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer), self.roundSettings['minPlayers'] + len(randomPlayersList))
+		if len(wordsByPlayer) > self.roundSettings['maxPlayers'] - len(randomPlayersList):
+			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer), self.roundSettings['maxPlayers'] - len(randomPlayersList))
 		if unreadyPlayers:
 			return "Слишком много тормозов в игре. Я не могу показать тебе словцы, пока все не будут готовы. Список тормозов:\n%s" % " ".join(unreadyPlayers)
 		if self.roundStatus == Round.STATUS_PREPARATION:
@@ -427,6 +430,7 @@ class Base_Game:
 	def _init():
 		game_id = DB.execute("INSERT INTO game SET createDate = NOW()").lastrowid
 		logging.info("New game was started. ID: %d" % game_id)
+		# addRandomPlayer
 		return game_id
 
 	@staticmethod
