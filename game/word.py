@@ -61,6 +61,17 @@ class Word:
 		""" + condition, params)
 
 	@staticmethod
+	def getListByGroupNumber(**params):
+		return DB.getList("""
+		SELECT word.*, player.name, player.telegram_id, round.number
+		FROM word
+		JOIN round ON (round.id = word.round_id)
+		JOIN player ON (player.id = word.player_id)
+		JOIN groups ON (groups.word_id = word.id AND groups.round_id = %(round_id)s AND groups.number = %(groupNumber)s)
+		WHERE word.round_id = %(round_id)s
+		""", params)
+
+	@staticmethod
 	def update(wordMinLength, **params):
 		params['oldWord'] = params['oldWord'].lower()
 		params['newWord'] = params['newWord'].lower()

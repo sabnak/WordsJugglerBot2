@@ -1,5 +1,6 @@
 from libs.dbAdapter import DB
 from collections import OrderedDict
+from game.word import Word
 import json
 
 
@@ -52,6 +53,7 @@ class Log:
 					number=groupLog['round_number'],
 					groups=OrderedDict()
 				)
+			Word.getListByGroupNumber(round_id=groupLog['round_id'], groupNumber=groupLog['group_number'])
 			groupLog['number'] = groupLog['group_number']
 			groupLog['data'] = json.loads(groupLog['data'], object_hook=OrderedDict)
 			gamesLog[groupLog['game_id']]['rounds'][groupLog['round_id']]['groups'][groupLog['group_id']] = groupLog

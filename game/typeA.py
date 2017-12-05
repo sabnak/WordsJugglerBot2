@@ -11,7 +11,7 @@ class Game(Base_Game):
 		dict(
 			minWordsPerPlayer=1,
 			maxWordsPerPlayer=1,
-			minWordLength=5,
+			minWordLength=4,
 			maxWordLength=15,
 			maxWeightPerWord=4,
 			maxWeightPerRound=4,

@@ -70,19 +70,26 @@ class Base_Game:
 		cheaters = dict()
 		responseList = []
 		preparedGroups = OrderedDict()
-		wordsByPlayer = dict()
+		wordsByWord = dict()
+		statsByPlayer = dict()
 		for groupNumber, group in groups.items():
 			wordsList = []
 			weightsList = dict()
 			for info in group:
+				if info['player_id'] not in statsByPlayer:
+					statsByPlayer[info['player_id']] = dict(words={}, name=info['name'])
+				if info['word'] not in statsByPlayer[info['player_id']]['words']:
+					statsByPlayer[info['player_id']]['words'][info['word']] = dict()
+				if info['electorPlayer_id']:
+					statsByPlayer[info['player_id']]['words'][info['word']][info['electorPlayer_id']] = dict(name=info['electorName'], weight=info['weight'])
 				if info['telegram_id'] != self._RANDOM_PLAYER['id']:
 					playerSpentWeight = Vote.getPlayerSumOfWeightPerRound(player_id=info['player_id'], **self.gameState)
 					if playerSpentWeight < self.roundSettings['maxWeightPerRound']:
 						lazyPlayers[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
 					if playerSpentWeight > self.roundSettings['maxWeightPerRound']:
 						cheaters[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
-				if info['word'] not in wordsByPlayer:
-					wordsByPlayer[info['word']] = info
+				if info['word'] not in wordsByWord:
+					wordsByWord[info['word']] = info
 				if info['word'] not in wordsList:
 					wordsList.append(info['word'])
 				if not info['weight']:
@@ -108,19 +115,19 @@ class Base_Game:
 		winners = []
 		for groupNumber, group in preparedGroups.items():
 			winnerWord, stats = self._start(group['words'], group['weights'])
-			winners.append(wordsByPlayer[winnerWord]['player_id'])
+			stats['players'] = statsByPlayer
+			winners.append(wordsByWord[winnerWord]['player_id'])
 			responseList += self._getPrettyGroupResultsList(stats, winnerWord, groupNumber, **self.gameState)
 			Log.save(
 				data=json.dumps(stats),
-				group_id=wordsByPlayer[winnerWord]['group_id'],
-				winnerPlayer_id=wordsByPlayer[winnerWord]['player_id'],
-				winnerWord_id=wordsByPlayer[winnerWord]['word_id'],
+				group_id=wordsByWord[winnerWord]['group_id'],
+				winnerPlayer_id=wordsByWord[winnerWord]['player_id'],
+				winnerWord_id=wordsByWord[winnerWord]['word_id'],
 				**self.gameState
 			)
 		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
 		if self.roundNumber + 1 not in self._ROUNDS:
 			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
-		responseList += self._getPlainPlayersWeights()
 		return "\n".join(responseList)
 
 	@staticmethod
@@ -131,7 +138,6 @@ class Base_Game:
 			for round_id, roundInfo in gameInfo['rounds'].items():
 				responseList.append("Раунд № <b>%d</b>" % roundInfo['number'])
 				for group_id, groupInfo in roundInfo['groups'].items():
-					responseList.append("Группа № <b>%d</b>" % groupInfo['number'])
 					responseList += Base_Game._getPrettyGroupResultsList(
 						stats=groupInfo['data'],
 						winnerWord=groupInfo['winnerWord'],
@@ -143,13 +149,21 @@ class Base_Game:
 
 	@staticmethod
 	def _getPrettyGroupResultsList(stats, winnerWord, groupNumber, **gameState):
-		return [
+		responseList = [
 			"<b>Группа %d</b>" % groupNumber,
-			"Баллы:\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
-			"Вероятности:\n%s" % "\n".join(["%.2f: %s" % (p[1], w) for w, p in stats['weights'].items()]),
-			"Слово-победитель: <b>%s</b>" % winnerWord,
-			"Игрок-победитель: <b>%s</b>" % Player.getPlayerByWord(word=winnerWord, **gameState)['name']
+			# "<b>Баллы:</b>\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
+			"<b>Вероятности:</b>\n%s" % "\n".join(["%.2f: %s" % (p[1], w) for w, p in stats['weights'].items()]),
+			"<b>Слово-победитель:</b> <b>%s</b>" % winnerWord,
+			"<b>Игрок-победитель: %s</b>" % Player.getPlayerByWord(word=winnerWord, **gameState)['name'],
+			"<b>Участники:</b>",
 		]
+		for playerInfo in stats['players'].values():
+			responseList.append("<b>%s</b>" % playerInfo['name'])
+			for word, wordInfo in playerInfo['words'].items():
+				responseList.append("* %s (%d)" % (word, sum([e['weight'] for e in wordInfo.values()])))
+				for elector in wordInfo.values():
+					responseList.append("++ %s: %d" % (elector['name'], elector['weight']))
+		return responseList
 
 	def updateWord(self, oldWord, newWord, update):
 		self._refreshGameState()
@@ -201,8 +215,17 @@ class Base_Game:
 		return Log.get(game_id=game['id'])
 
 	def getPlayerWordsByRound(self, update, round_id=None, fullAccess=False):
+		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
-		return Word.getListByRoundId(fullAccess=fullAccess, round_id=round_id, player_id=player_id, **self.gameState)
+		return Word.getListByRoundId(
+			fullAccess=fullAccess,
+			round_id=round_id,
+			player_id=player_id
+		) if round_id else Word.getListByRoundId(
+				fullAccess=fullAccess,
+				player_id=player_id,
+				**self.gameState
+			)
 
 	@staticmethod
 	def getPlayerWordsByGame(update, game_id=None, fullAccess=False):
