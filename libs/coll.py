@@ -4,6 +4,7 @@ from numpy import array
 from numpy.random import choice
 import configparser
 import os
+import pprint
 
 
 class Config:
@@ -24,6 +25,36 @@ class Config:
 		except KeyError:
 			return os.environ.get("%s.%s" % (section, name), None)
 
+
+class P(pprint.PrettyPrinter):
+
+	def __init__(self, *args, **kwargs):
+		pprint.PrettyPrinter.__init__(self)
+		self.maxLength = None
+
+	def _format(self, object, stream, indent, allowance, context, level):
+		if isinstance(object, (str, bytes)):
+			if self.maxLength and len(object) > self.maxLength:
+				object = object[:self.maxLength] + ('...' if isinstance(object, str) else b'...')
+		if isinstance(object, list) and self.maxLength and len(object) > self.maxLength:
+			object = object[:self.maxLength]
+		return pprint.PrettyPrinter._format(self, object, stream, indent, allowance, context, level)
+
+	def setMaxLength(self, value):
+		self.maxLength = int(value)
+
+
+def pr(var, label='', toVar=False, maxLength=None):
+	pp = P(indent=1)
+	if maxLength:
+		pp.setMaxLength(maxLength)
+	if toVar:
+		return pp.pformat(var)
+	pp.pprint(var)
+
+
+def pf(*args, **kwargs):
+	return pr(*args, toVar=True, **kwargs)
 
 def addDict(filePath):
 	words = []
@@ -54,7 +85,7 @@ def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	weightsDict = OrderedDict([words[x], [x, y]] for x, y in enumerate([1 / len(words)] * len(words)))
 	pointsDict = dict()
 	minWeight = (1 - maxWeight) / (len(words) - 1)
-	for author, weightsParsed in weights.items():
+	for weightsParsed in weights.values():
 		for word, weight in weightsParsed:
 			if word not in pointsDict:
 				pointsDict[word] = 0
@@ -76,4 +107,58 @@ def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	return winner, dict(words=words, points=pointsDict, weights=OrderedDict([word, [info[0], weights[info[0]]]] for word, info in weightsDict.items()))
 
 
+def bestOfMultipleSmart(words, weights, maxWeight=.90):
+	minWeight = (1 - maxWeight) / (len(words) - 1)
+	e = 2
+	weightsDict = OrderedDict([words[x], [x, minWeight]] for x, y in enumerate([1 / len(words)] * len(words)))
+	weightSumPerWord = OrderedDict()
+	weightToSpent = 1 - minWeight * len(words)
+	for weightsParsed in weights.values():
+		for word, weight in weightsParsed:
+			if word not in weightSumPerWord:
+				weightSumPerWord[word] = 0
+			weightSumPerWord[word] += int(weight)
+	coefficient = sum([i ** e for i in weightSumPerWord.values()]) * weightToSpent
+	_parsedWeight = [
+		(
+			word,
+			i[1] + weightSumPerWord[word] ** e / coefficient,
+			i[1],
+			weightSumPerWord[word]
+		)
+		for word, i in weightsDict.items()
+	]
+	p = list(zip(*_parsedWeight))
+	p[1] = array(p[1])
+	p[1] /= p[1].sum()
+	winner = choice(p[0], p=p[1], replace=False)
+	return (
+		winner,
+		dict(
+			words=words,
+			points=OrderedDict([(w[0], w[3]) for w in zip(*p)]),
+			weights=OrderedDict([w[0], [i, w[1]]] for i, w in enumerate(zip(*p)))))
+
+
 Config.build()
+
+if __name__ == "__main__":
+	_words = ['надышать', 'бульба', 'погонный', 'пирофосфат']
+	_weights = {
+		311: [
+			('надышать', 0),
+			('пирофосфат', 4)
+		],
+		-2: [
+			('бульба', 0)
+		],
+		321: [
+			('погонный', 4)
+		],
+		291: [
+			('пирофосфат', 4)
+		]
+	}
+
+	r = bestOfMultipleSmart(_words, _weights)
+	pr(r)

@@ -282,9 +282,9 @@ class Base_Game:
 			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word'], wordInfo['player_id']))
 		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] != self._RANDOM_PLAYER['id']]
 		if len(wordsByPlayer) < self.roundSettings['minPlayers'] + len(randomPlayersList):
-			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer), self.roundSettings['minPlayers'] + len(randomPlayersList))
+			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer) - len(randomPlayersList), self.roundSettings['minPlayers'])
 		if len(wordsByPlayer) > self.roundSettings['maxPlayers'] - len(randomPlayersList):
-			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer), self.roundSettings['maxPlayers'] - len(randomPlayersList))
+			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer) + len(randomPlayersList), self.roundSettings['maxPlayers'])
 		if unreadyPlayers:
 			return "Слишком много тормозов в игре. Я не могу показать тебе словцы, пока все не будут готовы. Список тормозов:\n%s" % " ".join(unreadyPlayers)
 		if self.roundStatus == Round.STATUS_PREPARATION:
@@ -348,6 +348,7 @@ class Base_Game:
 		)
 
 	def _getPlainPlayersWeights(self):
+		self._refreshGameState()
 		responseList = []
 		playerVotes, votesSum = Vote.getWeightPerRoundByPlayer(**self.gameState)
 		responseList.append("Игроки поставили такие баллы:")
@@ -356,6 +357,7 @@ class Base_Game:
 		return responseList
 
 	def _isPlayerCanVote(self, player_id, weight, word_id, word):
+		self._refreshGameState()
 		groupNumber, groupWords = Group.getGroupByWord(word_id=word_id, **self.gameState)
 		votes, spentWeight = Vote.getPlayerWeightPerRoundByWord(player_id=player_id, **self.gameState)
 		if weight > self.roundSettings['maxWeightPerWord']:

@@ -14,26 +14,7 @@ game = Game()
 
 def start(bot, update):
 	logging.info(update)
-	sendMsg(
-		bot,
-		update,
-		"""
-		Ну что ж, карапузы, готовте ваши словцы!
-		Просто пиши своё словцо мне. Я сам догадаюсь куда его впихнуть.
-		Поддерживаемые комманды:
-		/game_info, /i, /и - информация о текущей игре
-		/my_words_by_game, /wg, /си - твои словцы за текущую игру
-		/my_words_by_round, /wr, /ср - твои словцы за текущий раунд
-		/update, /u, /о - обнови своё словцо!
-		/random, /r, /р - случайное словцо. Вдохновись!
-		/candidates, /c, /к - посмотреть список словцов-кандидатов.
-		/ready, /готов - говорит мне, что вы готовы/не готовы к мясорубке.
-		/vote /v /голос /г - проголосовать за понравившиеся словцы.
-		/vote_info, /vi, /голос_инфо, /ги - посмотреть информацию о своих баллах
-		/fight, /f, /битва, /б - инициировать выбор лучшего словца. Бой не начнётся, пока все, предложившие словцы, не потратят все баллы.
-		/game_result, gr, результаты_игры, ри - посмотреть результаты игры. Если ID игры не передан, то будут показаны результаты последней игры
-		"""
-	)
+	sendMsg(bot, update, commandsList)
 
 
 def catchWord(bot, update):
@@ -178,9 +159,9 @@ def sendMsg(bot, update, msg):
 [
 	dispatcher.add_handler(handler) for handler in [
 		CommandHandler(['start', 'help', 'h', 'помощь', 'п'], start),
-		CommandHandler(['game_info', 'i', 'и'], getGameInfo, pass_args=True),
-		CommandHandler(['my_words_by_game', 'wg', 'си'], showMyWordsPerGame, pass_args=True),
-		CommandHandler(['my_words_by_round', 'wr', 'ср'], showMyWordsPerRound, pass_args=True),
+		CommandHandler(['gameinfo', 'i', 'и'], getGameInfo, pass_args=True),
+		CommandHandler(['mywordsbygame', 'wg', 'си'], showMyWordsPerGame, pass_args=True),
+		CommandHandler(['mywordsbyround', 'wr', 'ср'], showMyWordsPerRound, pass_args=True),
 		CommandHandler(['update', 'u', 'о'], updateMyWord, pass_args=True),
 		CommandHandler(['random', 'r', 'р'], getRandomWord, pass_args=False),
 		CommandHandler(['fight', 'f', 'битва', 'б'], fight, pass_args=False),
@@ -188,7 +169,7 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['ready', 'готов'], setState, pass_args=False),
 		CommandHandler(['vote', 'v', 'голос', 'г'], vote, pass_args=True),
 		CommandHandler(['vote_info', 'vi', 'голос_инфо', 'ги'], getMyVotes),
-		CommandHandler(['game_result', 'gr', 'результаты_игры', 'ри'], getGameResults, pass_args=True),
+		CommandHandler(['gameresult', 'gr', 'результаты_игры', 'ри'], getGameResults, pass_args=True),
 		MessageHandler(Filters.text, catchWord),
 
 
@@ -203,8 +184,27 @@ def sendMsg(bot, update, msg):
 # dispatcher.add_handler(word_handler)
 
 
+def getPlainCommandsList():
+	return re.sub(r"/([A-z]+[\s]+)[^-]+", r"\1", commandsList)
+
+
+commandsList = """
+/candidates /c /к - посмотреть список словцов-кандидатов
+/fight /f /битва, /б - инициировать выбор лучшего словца. Бой не начнётся, пока все, предложившие словцы, не потратят все баллы
+/gameinfo /i /и - информация о текущей игре
+/gameresult /gr /результатыиигры /ри - посмотреть результаты игры. Если ID игры не передан, то будут показаны результаты последней игр
+/mywordsbygame /wg /си - твои словцы за текущую игру
+/mywordsbyround /wr /ср - твои словцы за текущий раунд
+/random /r /р - случайное словцо. Вдохновись!
+/ready /готов - говорит мне, что вы готовы/не готовы к мясорубке
+/update /u /о - обнови своё словцо!
+/vote /v /голос /г - проголосовать за понравившиеся словцы
+/voteinfo /vi /голосинфо /ги - посмотреть информацию о своих баллах
+"""
+
 if __name__ == "__main__":
-	updater.start_polling()
+	# updater.start_polling()
+	print(getPlainCommandsList())
 	pass
 
 # DELETE FROM words.word WHERE id >= 1;

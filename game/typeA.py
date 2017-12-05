@@ -1,5 +1,5 @@
 from game.base import Base_Game
-from libs.coll import bestOfMultiple
+from libs.coll import bestOfMultipleSmart
 from game.player import Player
 
 class Game(Base_Game):
@@ -16,7 +16,7 @@ class Game(Base_Game):
 			maxWeightPerWord=4,
 			maxWeightPerRound=4,
 			minWeightPerRound=4,
-			minPlayers=3,
+			minPlayers=2,
 			maxPlayers=6,
 			randomWordsLimit=2,
 			percentPerPoint=5,
@@ -25,7 +25,9 @@ class Game(Base_Game):
 	}
 
 	def _start(self, words, weights):
-		winnerWord, stats = bestOfMultiple(words, weights, percentPerPoint=self.roundSettings['percentPerPoint'])
+		print(words)
+		print(weights)
+		winnerWord, stats = bestOfMultipleSmart(words, weights)
 		return winnerWord, stats
 
 
