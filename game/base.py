@@ -202,6 +202,18 @@ class Base_Game:
 		return game
 
 	@staticmethod
+	def getList(limit=None):
+		if not limit:
+			limit = 100
+		gamesList = DB.getList("SELECT * FROM game ORDER BY createDate DESC LIMIT %d" % limit)
+		if not gamesList:
+			return "Возмутительно! До сих пор не было сыграно ни одной игры!"
+		responseList = ["Список последних %d игр" % limit, "ID%sДата%sСтатус" % (" "*len(str(gamesList[0]['id'])), " "*17)]
+		for game in gamesList:
+			responseList.append("%d  %s  %s" % (game['id'], game['createDate'].strftime('%Y-%m-%d %H:%M:%S'), game['status']))
+		return "<pre>%s</pre>" % "\n".join(responseList)
+
+	@staticmethod
 	def getLastGameLog(status=STATUS_ENDED):
 		return Base_Game.getGameLog(game_id=None, status=status)
 

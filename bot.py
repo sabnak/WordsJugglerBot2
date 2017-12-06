@@ -96,6 +96,19 @@ def getGameInfo(bot, update, args):
 	sendMsg(bot, update, response)
 
 
+def getGameList(bot, update, args, user_data):
+	limit = None
+	if args:
+		try:
+			limit = int(args[0])
+		except ValueError:
+			sendMsg(bot, update, "Количество игр - число, блин.")
+			return
+	logging.info(update)
+	response = game.getList(limit)
+	sendMsg(bot, update, response)
+
+
 def setState(bot, update):
 	logging.info(update)
 	response = game.setPlayerState(update)
@@ -158,18 +171,19 @@ def sendMsg(bot, update, msg):
 
 [
 	dispatcher.add_handler(handler) for handler in [
-		CommandHandler(['start', 'help', 'h', 'помощь', 'п'], start),
-		CommandHandler(['gameinfo', 'i', 'и'], getGameInfo, pass_args=True),
-		CommandHandler(['mywordsbygame', 'wg', 'си'], showMyWordsPerGame, pass_args=True),
-		CommandHandler(['mywordsbyround', 'wr', 'ср'], showMyWordsPerRound, pass_args=True),
-		CommandHandler(['update', 'u', 'о'], updateMyWord, pass_args=True),
-		CommandHandler(['random', 'r', 'р'], getRandomWord, pass_args=False),
+		CommandHandler(['start', 'help', 'h', 'помощь'], start),
+		CommandHandler(['gameinfo', 'gi', 'играинфо'], getGameInfo, pass_args=True),
+		CommandHandler(['gamelist', 'gl', 'играсписок'], getGameList, pass_args=True, pass_user_data=True),
+		CommandHandler(['mywordsbygame', 'wg', 'моисловаигра'], showMyWordsPerGame, pass_args=True),
+		CommandHandler(['mywordsbyround', 'wr', 'моисловараунд'], showMyWordsPerRound, pass_args=True),
+		CommandHandler(['update', 'u', 'обновить', 'о'], updateMyWord, pass_args=True),
+		CommandHandler(['random', 'r', 'случайное'], getRandomWord, pass_args=False),
 		CommandHandler(['fight', 'f', 'битва', 'б'], fight, pass_args=False),
-		CommandHandler(['candidates', 'c', 'к'], getCandidates, pass_args=False),
+		CommandHandler(['candidates', 'c', 'к', 'кандидаты'], getCandidates, pass_args=False),
 		CommandHandler(['ready', 'готов'], setState, pass_args=False),
 		CommandHandler(['vote', 'v', 'голос', 'г'], vote, pass_args=True),
-		CommandHandler(['vote_info', 'vi', 'голос_инфо', 'ги'], getMyVotes),
-		CommandHandler(['gameresult', 'gr', 'результаты_игры', 'ри'], getGameResults, pass_args=True),
+		CommandHandler(['voteinfo', 'vi', 'голосинфо', 'ги'], getMyVotes),
+		CommandHandler(['gameresult', 'gr', 'результатыигры', 'ри'], getGameResults, pass_args=True),
 		MessageHandler(Filters.text, catchWord),
 
 
@@ -189,17 +203,19 @@ def getPlainCommandsList():
 
 
 commandsList = """
-/candidates /c /к - посмотреть список словцов-кандидатов
+/candidates /c /к /кандидаты - посмотреть список словцов-кандидатов
 /fight /f /битва, /б - инициировать выбор лучшего словца. Бой не начнётся, пока все, предложившие словцы, не потратят все баллы
-/gameinfo /i /и - информация о текущей игре
+/gameinfo /gi /играинфо - информация о текущей игре
+/gamelist /gl /играсписок - получить информацию о последних N играх
 /gameresult /gr /результатыиигры /ри - посмотреть результаты игры. Если ID игры не передан, то будут показаны результаты последней игр
-/mywordsbygame /wg /си - твои словцы за текущую игру
-/mywordsbyround /wr /ср - твои словцы за текущий раунд
-/random /r /р - случайное словцо. Вдохновись!
+/mywordsbygame /wg /моисловаигра - твои словцы за текущую игру
+/mywordsbyround /wr /моисловараунд - твои словцы за текущий раунд
+/random /r /случайное - случайное словцо. Вдохновись!
 /ready /готов - говорит мне, что вы готовы/не готовы к мясорубке
-/update /u /о - обнови своё словцо!
+/update /u /обновить /о - обнови своё словцо!
 /vote /v /голос /г - проголосовать за понравившиеся словцы
 /voteinfo /vi /голосинфо /ги - посмотреть информацию о своих баллах
+/start /help /h /помощь - помощь и список команд
 """
 
 if __name__ == "__main__":
