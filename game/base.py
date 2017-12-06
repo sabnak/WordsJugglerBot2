@@ -205,13 +205,36 @@ class Base_Game:
 	def getList(limit=None):
 		if not limit:
 			limit = 100
-		gamesList = DB.getList("SELECT * FROM game ORDER BY createDate DESC LIMIT %d" % limit)
+		gamesList = DB.getList("""
+			SELECT 
+				game.id, 
+				game.createDate, 
+				game.status, 
+				name, 
+				word,
+				LENGTH(game.id) length_id,
+				LENGTH(game.createDate) length_createDate,
+				LENGTH(game.status) length_status,
+				LENGTH(name) length_name,
+				LENGTH(word) length_word
+			FROM game 
+			JOIN player ON (player.id=game.winner_id)
+			JOIN word ON (word.player_id=player.id AND game_id = game.id)
+			ORDER BY createDate DESC 
+			LIMIT %d
+		""" % limit)
 		if not gamesList:
 			return "Возмутительно! До сих пор не было сыграно ни одной игры!"
-		responseList = ["Список последних %d игр" % limit, "ID%sДата%sСтатус" % (" "*len(str(gamesList[0]['id'])), " "*17)]
+		responseList = ["Список последних %d игр" % limit]
 		for game in gamesList:
-			responseList.append("%d  %s  %s" % (game['id'], game['createDate'].strftime('%Y-%m-%d %H:%M:%S'), game['status']))
-		return "<pre>%s</pre>" % "\n".join(responseList)
+			responseList.append("Игра ID <b>%d</b> от %s. Статус: <b>%s</b>" % (
+				game['id'],
+				game['createDate'].strftime('%Y-%m-%d %H:%M:%S'),
+				game['status']
+			))
+			responseList.append(" <b>%s</b> (<b>%s</b>)" % (game['word'], game['name']))
+			responseList.append("******")
+		return "\n".join(responseList)
 
 	@staticmethod
 	def getLastGameLog(status=STATUS_ENDED):

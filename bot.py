@@ -96,8 +96,8 @@ def getGameInfo(bot, update, args):
 	sendMsg(bot, update, response)
 
 
-def getGameList(bot, update, args, user_data):
-	limit = None
+def getGameList(bot, update, args):
+	limit = 10
 	if args:
 		try:
 			limit = int(args[0])
@@ -173,7 +173,7 @@ def sendMsg(bot, update, msg):
 	dispatcher.add_handler(handler) for handler in [
 		CommandHandler(['start', 'help', 'h', 'помощь'], start),
 		CommandHandler(['gameinfo', 'gi', 'играинфо'], getGameInfo, pass_args=True),
-		CommandHandler(['gamelist', 'gl', 'играсписок'], getGameList, pass_args=True, pass_user_data=True),
+		CommandHandler(['gamelist', 'gl', 'играсписок'], getGameList, pass_args=True),
 		CommandHandler(['mywordsbygame', 'wg', 'моисловаигра'], showMyWordsPerGame, pass_args=True),
 		CommandHandler(['mywordsbyround', 'wr', 'моисловараунд'], showMyWordsPerRound, pass_args=True),
 		CommandHandler(['update', 'u', 'обновить', 'о'], updateMyWord, pass_args=True),
