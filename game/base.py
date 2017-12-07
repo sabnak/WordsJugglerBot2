@@ -35,6 +35,10 @@ class Base_Game:
 	roundNumber = None
 
 	def _refreshGameState(self):
+		"""
+		Updates game state (game_id, round__id etc.)
+		Must be calls in every public method
+		"""
 		self.game_id, self.round_id = self._getId()
 		_round = Round.get(self.round_id)
 		self.roundNumber = _round['number']
@@ -258,7 +262,14 @@ class Base_Game:
 		return Log.get(game_id=game['id'])
 
 	def getPlayerWordsByRound(self, update, round_id=None, fullAccess=False):
+		"""
+		:param update: dict with update info
+		:param round_id: int
+		:param fullAccess: bool if True access to to all words otherwise your own
+		:return: list of founded words
+		"""
 		self._refreshGameState()
+
 		player_id = Player.getId(update.message.chat)
 		return Word.getListByRoundId(
 			fullAccess=fullAccess,
@@ -299,11 +310,14 @@ class Base_Game:
 
 	def getCandidates(self, update):
 		self._refreshGameState()
+
 		fullInfoWordsList = Word.getListByRoundId(fullAccess=True, **self.gameState)
 		wordsByPlayer = dict()
 		self._addRandomWord()
 		randomPlayersList = []
+
 		for wordInfo in fullInfoWordsList:
+
 			if wordInfo['telegram_id'] == Base_Game._RANDOM_PLAYER['id'] and Base_Game._RANDOM_PLAYER['id'] not in randomPlayersList:
 				randomPlayersList.append(Base_Game._RANDOM_PLAYER['id'])
 			if wordInfo['player_id'] not in wordsByPlayer:
@@ -316,6 +330,7 @@ class Base_Game:
 				)
 			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word'], wordInfo['player_id']))
 		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] != self._RANDOM_PLAYER['id']]
+
 		if len(wordsByPlayer) < self.roundSettings['minPlayers'] + len(randomPlayersList):
 			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer) - len(randomPlayersList), self.roundSettings['minPlayers'])
 		if len(wordsByPlayer) > self.roundSettings['maxPlayers'] - len(randomPlayersList):
@@ -325,6 +340,7 @@ class Base_Game:
 		if self.roundStatus == Round.STATUS_PREPARATION:
 			Round.updateRoundStatus(round_id=self.round_id, status=Round.STATUS_IN_PROGRESS)
 		wordsList = self._splitWordsIntoGroups([word for wordsInfo in wordsByPlayer.values() for word in wordsInfo['words']])
+
 		return """
 			Вот список всех словцов. Кроме того я добавил в него несколько случайных (а может и нет). Хехе.
 			Добавь вместо ноликов свои баллы.
