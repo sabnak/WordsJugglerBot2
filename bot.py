@@ -57,7 +57,7 @@ def updateMyWord(bot, update, args):
 		response = "Слева - старое словцо, справа - новое словцо. ДЕЛАЙ ТАК!"
 		sendMsg(bot, update, response)
 		return
-	response = game.updateWord(args[0], args[1], update)
+	response = game.updateWord(update, args[0], args[1])
 	sendMsg(bot, update, response)
 
 
@@ -190,17 +190,10 @@ def sendMsg(bot, update, msg):
 		MessageHandler(Filters.command, iAmSoStupid)
 	]
 ]
-# dispatcher.add_handler(word_handler)
-# dispatcher.add_handler(gameInfo_handler)
-# dispatcher.add_handler(selfWordsByGame_handler)
-# dispatcher.add_handler(selfWordsByRound_handler)
-# dispatcher.add_handler(updateMyWord_handler)
-# dispatcher.add_handler(word_handler)
 
 
 def getPlainCommandsList():
 	return re.sub(r"/([A-z]+[\s]+)[^-]+", r"\1", commandsList)
-
 
 commandsList = """
 /candidates /c /к /кандидаты - посмотреть список словцов-кандидатов

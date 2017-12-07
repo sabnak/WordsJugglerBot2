@@ -53,9 +53,16 @@ class Base_Game:
 		self.roundSettings = self._ROUNDS[self.roundNumber]
 
 	def addWord(self, update):
+		"""
+		Adds word into current round of the game
+		:param update: dict with update info
+		:return: str text response
+		"""
 		self._refreshGameState()
+
 		if self.roundStatus != Round.STATUS_PREPARATION:
 			return "Слишком поздно вертеть задом. Раунд уже началася. Дождись окончания раунда"
+
 		return Word.add(
 			word=update.message.text,
 			player_id=Player.getId(update.message.chat),
@@ -65,20 +72,27 @@ class Base_Game:
 		)[1]
 
 	def start(self):
+		"""
+		Starts new game
+		:return: str text response
+		"""
 		self._refreshGameState()
+
 		groups = Group.get(groupByGroupNumber=True, **self.gameState)
 		if self.roundStatus != Round.STATUS_IN_PROGRESS:
 			return "Не надо огня! Рано ещё начинать рубку. Предлагайте свои словцы и голосуйте за другие"
-		# self.isEveryOneVoted()
+
 		lazyPlayers = dict()
 		cheaters = dict()
 		responseList = []
 		preparedGroups = OrderedDict()
 		wordsByWord = dict()
 		statsByPlayer = dict()
+
 		for groupNumber, group in groups.items():
 			wordsList = []
 			weightsList = dict()
+
 			for info in group:
 				if info['player_id'] not in statsByPlayer:
 					statsByPlayer[info['player_id']] = dict(words={}, name=info['name'])
@@ -96,6 +110,7 @@ class Base_Game:
 					wordsByWord[info['word']] = info
 				if info['word'] not in wordsList:
 					wordsList.append(info['word'])
+
 				if not info['weight']:
 					electorPlayer_id = -2 if not info['electorPlayer_id'] else info['electorPlayer_id']
 					weight = 0
@@ -106,6 +121,7 @@ class Base_Game:
 					weightsList[electorPlayer_id] = []
 				weightsList[electorPlayer_id].append((info['word'], weight))
 			preparedGroups[groupNumber] = dict(words=wordsList, weights=weightsList)
+
 		if lazyPlayers or cheaters:
 			responseList.append("Ничего у нас не выйдет!")
 			if lazyPlayers:
@@ -117,6 +133,7 @@ class Base_Game:
 			"Игра от <b>%(gameCreateDate)s</b>. Раунд <b>%(roundNumber)d</b>" % self.gameState
 		]
 		winners = []
+
 		for groupNumber, group in preparedGroups.items():
 			winnerWord, stats = self._start(group['words'], group['weights'])
 			stats['players'] = statsByPlayer
@@ -129,14 +146,22 @@ class Base_Game:
 				winnerWord_id=wordsByWord[winnerWord]['word_id'],
 				**self.gameState
 			)
+
 		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
 		if self.roundNumber + 1 not in self._ROUNDS:
 			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
+
 		return "\n".join(responseList)
 
 	@staticmethod
 	def _getPrettyGameResults(gamesLog):
+		"""
+		Format game result into pretty text view
+		:param gamesLog: dict of game log
+		:return: str with text response
+		"""
 		responseList = []
+
 		for game_id, gameInfo in gamesLog.items():
 			responseList.append("Лог игры ID <b>%d</b> от %s" % (game_id, gameInfo['createDate']))
 			for round_id, roundInfo in gameInfo['rounds'].items():
@@ -149,10 +174,19 @@ class Base_Game:
 						game_id=game_id,
 						round_id=round_id
 					)
+
 		return "\n".join(responseList)
 
 	@staticmethod
 	def _getPrettyGroupResultsList(stats, winnerWord, groupNumber, **gameState):
+		"""
+		Format group results into pretty text viw
+		:param stats: dict of group log
+		:param winnerWord:
+		:param groupNumber:
+		:param gameState:
+		:return: str with text response
+		"""
 		responseList = [
 			"<b>Группа %d</b>" % groupNumber,
 			# "<b>Баллы:</b>\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
@@ -161,15 +195,24 @@ class Base_Game:
 			"<b>Игрок-победитель: %s</b>" % Player.getPlayerByWord(word=winnerWord, **gameState)['name'],
 			"<b>Участники:</b>",
 		]
+
 		for playerInfo in stats['players'].values():
 			responseList.append("<b>%s</b>" % playerInfo['name'])
 			for word, wordInfo in playerInfo['words'].items():
 				responseList.append("* %s (%d)" % (word, sum([e['weight'] for e in wordInfo.values()])))
 				for elector in wordInfo.values():
 					responseList.append("++ %s: %d" % (elector['name'], elector['weight']))
+
 		return responseList
 
-	def updateWord(self, oldWord, newWord, update):
+	def updateWord(self, update, oldWord, newWord):
+		"""
+		Update player word
+		:param update: dict with update info
+		:param oldWord:
+		:param newWord:
+		:return: str with text response
+		"""
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
 		if self.roundStatus == Round.STATUS_IN_PROGRESS:
@@ -186,13 +229,20 @@ class Base_Game:
 
 	@staticmethod
 	def get(game_id=None):
+		"""
+		Returns game summary
+		:param game_id:
+		:return: dict with game stats
+		"""
 		condition = ("WHERE id=%d" % game_id) if game_id else ""
+
 		game = DB.getOne("""
 			SELECT
 				*,
 				(SELECT count(*) FROM word WHERE game_id = game.id) words
 			FROM game %s ORDER BY createDate DESC
 		""" % condition)
+
 		if not game:
 			return None
 		game['rounds'] = Round.getByGame(game['id'])
