@@ -28,7 +28,7 @@ class Base_Game:
 
 	_RANDOM_PLAYER = {'id': -1, 'first_name': "Жорж"}
 
-	_GENERATED_GAME_HARDCORE_WORDS_LIMIT = 10
+	_GENERATED_GAME_HARDCORE_WORDS_LIMIT = 100
 
 	STATUS_IN_PROGRESS = "in progress"
 	STATUS_ENDED = "ended"
