@@ -143,6 +143,7 @@ def bestOfMultipleSmart(words, weights, m=.90, e=3):
 			if word not in weightSumPerWord:
 				weightSumPerWord[word] = 0
 			weightSumPerWord[word] += int(weight)
+	weightSum = sum([i for i in weightSumPerWord.values()])
 	coefficient = sum([i ** e for i in weightSumPerWord.values()]) * weightToSpent
 	if not coefficient:
 		coefficient = 1
@@ -156,15 +157,30 @@ def bestOfMultipleSmart(words, weights, m=.90, e=3):
 		for word, i in weightsDict.items()
 	]
 	p = list(zip(*_parsedWeight))
+	_p = list(p[3][:])
+	_p.sort(reverse=True)
 	p[1] = array(p[1])
 	p[1] /= p[1].sum()
 	winner = choice(p[0], p=p[1], replace=False)
+	print(_p[-1], _p[-2], weightSum)
 	return (
 		winner,
 		dict(
 			words=words,
 			points=OrderedDict([(w[0], w[3]) for w in zip(*p)]),
-			weights=OrderedDict([w[0], [i, w[1]]] for i, w in enumerate(zip(*p)))))
+			weights=OrderedDict([w[0], [i, w[1]]] for i, w in enumerate(zip(*p))),
+			debug=dict(
+				index1=dict(
+					value=(_p[0] - _p[1]) / weightSum,
+					description="(W1 - W2) / SUM(*)\n(%.3f - %.3f) / %d" % (_p[0], _p[1], weightSum)
+				),
+				index2=dict(
+					value=(_p[0] - _p[1] - (_p[2] if len(_p) > 2 else 0)) / weightSum,
+					description="(W1 - W2 - W3) / SUM(*)\n(%.3f - %.3f - %.3f) / %d" % (_p[0], _p[1], _p[2] if len(_p) > 2 else 0, weightSum)
+				)
+			)
+		)
+	)
 
 
 Config.build()

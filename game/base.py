@@ -28,7 +28,7 @@ class Base_Game:
 
 	_RANDOM_PLAYER = {'id': -1, 'first_name': "Жорж"}
 
-	_GENERATED_GAME_HARDCORE_WORDS_LIMIT = 100
+	_GENERATED_GAME_HARDCORE_WORDS_LIMIT = 10
 
 	STATUS_IN_PROGRESS = "in progress"
 	STATUS_ENDED = "ended"
@@ -209,6 +209,11 @@ class Base_Game:
 				"<b>Игрок-победитель: %s</b>" % Player.getPlayerByWord(word=winnerWord, **gameState)['name'],
 				"<b>Участники:</b>",
 			]
+
+		if isGeneratedGame and 'debug' in stats:
+			print(stats['debug'])
+			responseList.append("<b>Дебаг</b>")
+			responseList += ["<b>%s:</b>\n\n%s\n%s" % (name, info['description'], str(info['value'])) for name, info in stats['debug'].items()]
 
 		if isGeneratedGame:
 			return responseList
