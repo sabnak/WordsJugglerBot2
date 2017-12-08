@@ -372,7 +372,7 @@ class Base_Game:
 		if wordsLimit > self._GENERATED_GAME_HARDCORE_WORDS_LIMIT:
 			return "Слишком много словцов для генерации. Пожалуй. Максимум в игре могут участвовать %d словцов" % self._GENERATED_GAME_HARDCORE_WORDS_LIMIT
 		if not params:
-			params = []
+			params = {}
 		while wordsCount < wordsLimit:
 			randomWord = self.getRandom("ushakov")
 			if not randomWord:
@@ -380,8 +380,7 @@ class Base_Game:
 			wordsList.append(randomWord)
 			weightsListParsed[wordsCount] = [(randomWord, weightsList[wordsCount] if len(weightsList) >= wordsCount + 1 else 0)]
 			wordsCount += 1
-		print(params)
-		winnerWord, stats = bestOfMultipleSmart(wordsList, weightsListParsed, *params)
+		winnerWord, stats = bestOfMultipleSmart(wordsList, weightsListParsed, **params)
 		responseList = self._getPrettyGroupResultsList(stats, winnerWord, isGeneratedGame=True, **self.gameState)
 		return "\n".join(responseList)
 

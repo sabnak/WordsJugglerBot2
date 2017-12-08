@@ -5,6 +5,7 @@ from numpy.random import choice
 import configparser
 import os
 import pprint
+import argparse
 
 
 class Config:
@@ -42,6 +43,31 @@ class P(pprint.PrettyPrinter):
 
 	def setMaxLength(self, value):
 		self.maxLength = int(value)
+
+
+class ArgumentParserError(Exception):
+	pass
+
+
+class ThrowingArgumentParser(argparse.ArgumentParser):
+	def error(self, message):
+		raise ArgumentParserError(message)
+
+	def exit(self, status=0, message=None):
+		pass
+
+
+def parseStringArgs(string, argsList):
+	"""
+	Pars string into command line arguments
+	:param string: str
+	:param argsList: args list
+	:return dict with parsed data
+	"""
+	parser = ThrowingArgumentParser()
+	for arg in argsList:
+		parser.add_argument(*arg['name'], **arg['params'] if 'params' in arg else {})
+	return vars(parser.parse_args(re.split(r'[\s\xA0]+', string) if isinstance(string, str) else string))
 
 
 def pr(var, label='', toVar=False, maxLength=None):
@@ -107,10 +133,8 @@ def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	return winner, dict(words=words, points=pointsDict, weights=OrderedDict([word, [info[0], weights[info[0]]]] for word, info in weightsDict.items()))
 
 
-def bestOfMultipleSmart(words, weights, maxWeight=.90, e=2):
-	maxWeight = float(maxWeight)
-	e = float(e)
-	minWeight = (1 - maxWeight) / (len(words) - 1)
+def bestOfMultipleSmart(words, weights, m=.90, e=2):
+	minWeight = (1 - m) / (len(words) - 1)
 	weightsDict = OrderedDict([words[x], [x, minWeight]] for x, y in enumerate([1 / len(words)] * len(words)))
 	weightSumPerWord = OrderedDict()
 	weightToSpent = 1 - minWeight * len(words)
@@ -120,6 +144,8 @@ def bestOfMultipleSmart(words, weights, maxWeight=.90, e=2):
 				weightSumPerWord[word] = 0
 			weightSumPerWord[word] += int(weight)
 	coefficient = sum([i ** e for i in weightSumPerWord.values()]) * weightToSpent
+	if not coefficient:
+		coefficient = 1
 	_parsedWeight = [
 		(
 			word,

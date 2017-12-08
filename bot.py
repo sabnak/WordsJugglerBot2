@@ -2,7 +2,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 from game.typeA import Game
 import re
-from libs.coll import Config
+from libs.coll import Config, parseStringArgs, ArgumentParserError
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
@@ -94,7 +94,33 @@ def generateBattle(bot, update, args):
 		except ValueError:
 			sendMsg(bot, update, "Если уж передаёшь веса, то передай их в правильном формате. Каждый вес - целое число")
 			return
-	params = args[2:]
+	battleArgs = [
+		dict(
+			name=["-e"],
+			params=dict(
+				type=float,
+				default=3,
+				help="Степень"
+			)
+		),
+		dict(
+			name=["-m"],
+			params=dict(
+				type=float,
+				default=.9,
+				help="Максимальный вес"
+			)
+		)
+	]
+	params = None
+	if len(args) > 2:
+		try:
+			params = parseStringArgs(args[2:], battleArgs)
+		except ArgumentParserError as err:
+			sendMsg(bot, update, "Какие-то ты кривые аргументы ввёл. Вот, почитай: %s\nПоддерживаемые аргументы:\n-e E - степень\n-m M - максимальный вес" % str(err))
+			return
+		if not params:
+			sendMsg(bot, update, "Поддерживаемые аргументы:\n-e E - степень\n-m M - максимальный вес")
 	response = game.generate(wordsLimit, weightsList, params)
 	sendMsg(bot, update, response)
 
@@ -243,7 +269,17 @@ commandsList = """
 if __name__ == "__main__":
 	updater.start_polling()
 	# print(getPlainCommandsList())
-	pass
+	# string = "-f 15"
+	# args = [
+	# 	dict(
+	# 		name=["-e"],
+	# 		params=dict(
+	# 			type=int
+	# 		)
+	# 	)
+	# ]
+	# print(parseStringArgs(string, args))
+	# print("1111")
 
 # DELETE FROM words.word WHERE id >= 1;
 # DELETE FROM words.game WHERE id >= 1;
