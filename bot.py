@@ -85,16 +85,16 @@ def generateBattle(bot, update, args):
 	if wordsLimit == 1:
 		sendMsg(bot, update, "Что, правда хочешь устроить бой из одного словца?! Какой-то ты неразумный.")
 		return
-	if len(args) < 2:
-		weightsList = []
-		sendMsg(bot, update, "Ты не передал веса слов! Будет полный хаос!!!")
-	else:
-		try:
-			weightsList = [int(x) for x in args[1].split(",")]
-		except ValueError:
-			sendMsg(bot, update, "Если уж передаёшь веса, то передай их в правильном формате. Каждый вес - целое число")
-			return
 	battleArgs = [
+		dict(
+			name=["-p"],
+			params=dict(
+				type=int,
+				nargs="*",
+				default=[],
+				help="Баллы, чере пробел"
+			)
+		),
 		dict(
 			name=["-e"],
 			params=dict(
@@ -113,15 +113,32 @@ def generateBattle(bot, update, args):
 		)
 	]
 	params = None
-	if len(args) > 2:
+	weights = []
+	if len(args) > 1:
 		try:
-			params = parseStringArgs(args[2:], battleArgs)
+			params = parseStringArgs(args[1:], battleArgs)
 		except ArgumentParserError as err:
-			sendMsg(bot, update, "Какие-то ты кривые аргументы ввёл. Вот, почитай: %s\nПоддерживаемые аргументы:\n-e E - степень\n-m M - максимальный вес" % str(err))
+			sendMsg(bot, update, """
+				Какие-то ты кривые аргументы ввёл. Вот, почитай: %s
+				Поддерживаемые аргументы:
+				-e E - степень
+				-m M - максимальный вес
+				-p P - веса слов через пробел
+			""" % str(err))
 			return
 		if not params:
-			sendMsg(bot, update, "Поддерживаемые аргументы:\n-e E - степень\n-m M - максимальный вес")
-	response = game.generate(wordsLimit, weightsList, params)
+			sendMsg(bot, update, """
+				Поддерживаемые аргументы:\n
+				-e E - степень\n
+				-m M - максимальный вес\n
+				-p P - веса слов через пробел
+			""")
+	if params:
+		if not params['p']:
+			sendMsg(bot, update, "Ты не передал веса слов! Будет полный хаос!!!\nЕсли хочешь передать веса используй параметр -p и пиши их через пробел")
+		weights = params['p']
+		del params['p']
+	response = game.generate(wordsLimit, weights, params)
 	sendMsg(bot, update, response)
 
 
