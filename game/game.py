@@ -2,4 +2,6 @@ from libs.dbAdapter import DB
 
 
 class Game:
-	pass
+
+	def __init__(self, game_id):
+		pass
