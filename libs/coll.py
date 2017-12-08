@@ -134,10 +134,19 @@ def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 
 
 def bestOfMultipleSmart(words, weights, m=.90, e=3):
+	"""
+	Chooses word from list considering the probability
+	:param words: list of words
+	:param weights: dict with weights
+	:param m: float - max weight per word
+	:param e: float - degree
+	:return: dict with result, stats and debug information
+	"""
 	minWeight = (1 - m) / (len(words) - 1)
 	weightsDict = OrderedDict([words[x], [x, minWeight]] for x, y in enumerate([1 / len(words)] * len(words)))
 	weightSumPerWord = OrderedDict()
 	weightToSpent = 1 - minWeight * len(words)
+
 	for weightsParsed in weights.values():
 		for word, weight in weightsParsed:
 			if word not in weightSumPerWord:
@@ -145,8 +154,10 @@ def bestOfMultipleSmart(words, weights, m=.90, e=3):
 			weightSumPerWord[word] += int(weight)
 	weightSum = sum([i for i in weightSumPerWord.values()])
 	coefficient = sum([i ** e for i in weightSumPerWord.values()]) * weightToSpent
+
 	if not coefficient:
 		coefficient = 1
+
 	_parsedWeight = [
 		(
 			word,
@@ -162,7 +173,7 @@ def bestOfMultipleSmart(words, weights, m=.90, e=3):
 	p[1] = array(p[1])
 	p[1] /= p[1].sum()
 	winner = choice(p[0], p=p[1], replace=False)
-	print(_p[-1], _p[-2], weightSum)
+
 	return (
 		winner,
 		dict(
