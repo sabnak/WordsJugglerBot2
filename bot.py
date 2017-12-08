@@ -72,6 +72,33 @@ def getRandomWord(bot, update):
 	sendMsg(bot, update, response)
 
 
+def generateBattle(bot, update, args):
+	logging.info(update)
+	if not args:
+		sendMsg(bot, update, "Живо передал параметры битвы в правильном формате!")
+		return
+	try:
+		wordsLimit = int(args[0])
+	except ValueError:
+		sendMsg(bot, update, "Количество слов - число, блин.")
+		return
+	if wordsLimit == 1:
+		sendMsg(bot, update, "Что, правда хочешь устроить бой из одного словца?! Какой-то ты неразумный.")
+		return
+	if len(args) < 2:
+		weightsList = []
+		sendMsg(bot, update, "Ты не передал веса слов! Будет полный хаос!!!")
+	else:
+		try:
+			weightsList = [int(x) for x in args[1].split(",")]
+		except ValueError:
+			sendMsg(bot, update, "Если уж передаёшь веса, то передай их в правильном формате. Каждый вес - целое число")
+			return
+	params = args[2:]
+	response = game.generate(wordsLimit, weightsList, params)
+	sendMsg(bot, update, response)
+
+
 def getGameInfo(bot, update, args):
 	if not args:
 		game_id = None
@@ -184,6 +211,7 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['vote', 'v', 'голос', 'г'], vote, pass_args=True),
 		CommandHandler(['voteinfo', 'vi', 'голосинфо', 'ги'], getMyVotes),
 		CommandHandler(['gameresult', 'gr', 'результатыигры', 'ри'], getGameResults, pass_args=True),
+		CommandHandler(['generatebattle', 'gb', 'генерироватьбитву', 'гб'], generateBattle, pass_args=True),
 		MessageHandler(Filters.text, catchWord),
 
 
@@ -201,6 +229,7 @@ commandsList = """
 /gameinfo /gi /играинфо - информация о текущей игре
 /gamelist /gl /играсписок - получить информацию о последних N играх
 /gameresult /gr /результатыиигры /ри - посмотреть результаты игры. Если ID игры не передан, то будут показаны результаты последней игр
+/generatebattle /gb /генерироватьбитву /гб - сгенерируй битву и посмотри на результаты! Формат: КОЛИЧЕСТВО_СЛОВ ВЕСА_СЛОВ_ЧЕРЕЗ_ЗАПЯТУЮ ПАРАМЕТРЫ
 /mywordsbygame /wg /моисловаигра - твои словцы за текущую игру
 /mywordsbyround /wr /моисловараунд - твои словцы за текущий раунд
 /random /r /случайное - случайное словцо. Вдохновись!

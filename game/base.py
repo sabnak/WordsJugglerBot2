@@ -2,6 +2,7 @@ from libs.dbAdapter import DB
 import logging
 import random
 from collections import OrderedDict
+from libs.coll import bestOfMultipleSmart
 import re
 from libs.coll import splitList
 from game.player import Player
@@ -26,6 +27,8 @@ class Base_Game:
 	}
 
 	_RANDOM_PLAYER = {'id': -1, 'first_name': "Жорж"}
+
+	_GENERATED_GAME_HARDCORE_WORDS_LIMIT = 10
 
 	STATUS_IN_PROGRESS = "in progress"
 	STATUS_ENDED = "ended"
@@ -178,7 +181,7 @@ class Base_Game:
 		return "\n".join(responseList)
 
 	@staticmethod
-	def _getPrettyGroupResultsList(stats, winnerWord, groupNumber, **gameState):
+	def _getPrettyGroupResultsList(stats, winnerWord, groupNumber=None, isGeneratedGame=False, **gameState):
 		"""
 		Format group results into pretty text viw
 		:param stats: dict of group log
@@ -187,14 +190,28 @@ class Base_Game:
 		:param gameState:
 		:return: str with text response
 		"""
-		responseList = [
-			"<b>Группа %d</b>" % groupNumber,
-			# "<b>Баллы:</b>\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
+		if isGeneratedGame:
+			responseList = [
+				"<b>Баллы:</b>\n%s" % "\n".join(["%d: %s" % (p, w) for w, p in stats['points'].items()]),
+			]
+		else:
+			responseList = [
+				"<b>Группа %d</b>" % groupNumber
+			]
+
+		responseList += [
 			"<b>Вероятности:</b>\n%s" % "\n".join(["%.2f: %s" % (p[1], w) for w, p in stats['weights'].items()]),
-			"<b>Слово-победитель:</b> <b>%s</b>" % winnerWord,
-			"<b>Игрок-победитель: %s</b>" % Player.getPlayerByWord(word=winnerWord, **gameState)['name'],
-			"<b>Участники:</b>",
+			"<b>Слово-победитель:</b> <b>%s</b>" % winnerWord
 		]
+
+		if not isGeneratedGame:
+			responseList += [
+				"<b>Игрок-победитель: %s</b>" % Player.getPlayerByWord(word=winnerWord, **gameState)['name'],
+				"<b>Участники:</b>",
+			]
+
+		if isGeneratedGame:
+			return responseList
 
 		for playerInfo in stats['players'].values():
 			responseList.append("<b>%s</b>" % playerInfo['name'])
@@ -346,6 +363,27 @@ class Base_Game:
 			if Word.isWordValid(word, minLength)[0]:
 				return word
 		return None
+
+	def generate(self, wordsLimit, weightsList, params=None):
+		self._refreshGameState()
+		wordsCount = 0
+		wordsList = []
+		weightsListParsed = dict()
+		if wordsLimit > self._GENERATED_GAME_HARDCORE_WORDS_LIMIT:
+			return "Слишком много словцов для генерации. Пожалуй. Максимум в игре могут участвовать %d словцов" % self._GENERATED_GAME_HARDCORE_WORDS_LIMIT
+		if not params:
+			params = []
+		while wordsCount < wordsLimit:
+			randomWord = self.getRandom("ushakov")
+			if not randomWord:
+				return "Не могу добавить случайное словцо. Паникуй!"
+			wordsList.append(randomWord)
+			weightsListParsed[wordsCount] = [(randomWord, weightsList[wordsCount] if len(weightsList) >= wordsCount + 1 else 0)]
+			wordsCount += 1
+		print(params)
+		winnerWord, stats = bestOfMultipleSmart(wordsList, weightsListParsed, *params)
+		responseList = self._getPrettyGroupResultsList(stats, winnerWord, isGeneratedGame=True, **self.gameState)
+		return "\n".join(responseList)
 
 	def setPlayerState(self, update):
 		self._refreshGameState()

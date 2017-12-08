@@ -107,9 +107,10 @@ def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	return winner, dict(words=words, points=pointsDict, weights=OrderedDict([word, [info[0], weights[info[0]]]] for word, info in weightsDict.items()))
 
 
-def bestOfMultipleSmart(words, weights, maxWeight=.90):
+def bestOfMultipleSmart(words, weights, maxWeight=.90, e=2):
+	maxWeight = float(maxWeight)
+	e = float(e)
 	minWeight = (1 - maxWeight) / (len(words) - 1)
-	e = 2
 	weightsDict = OrderedDict([words[x], [x, minWeight]] for x, y in enumerate([1 / len(words)] * len(words)))
 	weightSumPerWord = OrderedDict()
 	weightToSpent = 1 - minWeight * len(words)
