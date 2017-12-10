@@ -2,7 +2,7 @@ from libs.dbAdapter import DB
 import logging
 import random
 from collections import OrderedDict
-from libs.coll import bestOfMultipleSmart
+from libs.coll import bestOfMultipleSmart, md5, Config
 import re
 from libs.coll import splitList
 from game.player import Player
@@ -11,49 +11,210 @@ from game.round import Round
 from game.group import Group
 from game.vote import Vote
 from game.log import Log
+from game.game import Game
+from game.series import Series
 import json
 
 
 class Base_Game:
 
-	ERROR_CODES = {
-		"INNER_ERROR": "Ебануться! Что-то пошло не так. Я не смог сохранить твоё словцо. Не делай так больше!"
-	}
-
-	_ROUNDS = dict()
+	_SETTINGS = dict()
 
 	_DICTIONARIES = {
 		"ushakov": r"./dictionaries/ushakov_reb.txt"
 	}
 
-	_RANDOM_PLAYER = {'id': -1, 'first_name': "Жорж"}
+	_RANDOM_PLAYER = {
+		'id': -1,
+		'first_name': "Жорж"
+	}
 
-	_GENERATED_GAME_HARDCORE_WORDS_LIMIT = 100
+	_GENERATED_GAME_HARD_WORDS_LIMIT = 100
+	_MAX_OPENED_GAMES_PER_PLAYER = 5
 
+	STATUS_PREPARATION = "preparation"
 	STATUS_IN_PROGRESS = "in progress"
 	STATUS_ENDED = "ended"
+	STATUS_ABORTED = "aborted"
 
-	game_id = None
-	round_id = None
-	roundNumber = None
+	_gameState = None
+	_seriesState = None
+	_playerState = None
 
-	def _refreshGameState(self):
+	def __init__(self, telegram_id):
+		self._refreshPlayerState(telegram_id)
+		self.game = Game()
+
+	def _refreshPlayerState(self, telegram_id=None):
+		if self._playerState and not telegram_id:
+			telegram_id = self._playerState['telegram_id']
+		self._playerState = Player.get(telegram_id=telegram_id)
+		print(self._playerState)
+
+	def _refreshGameState(self, password=None):
 		"""
-		Updates game state (game_id, round__id etc.)
+		Updates game state (game_id, round_id etc.)
 		Must be calls in every public method
 		"""
-		self.game_id, self.round_id = self._getId()
-		_round = Round.get(self.round_id)
-		self.roundNumber = _round['number']
-		self.roundStatus = _round['status']
-		self.gameState = dict(
-			game_id=self.game_id,
-			round_id=self.round_id,
-			roundNumber=self.roundNumber,
-			roundStatus=self.roundStatus,
-			gameCreateDate=self._get(self.game_id)['createDate'].strftime('%Y-%m-%d %H:%M:%S')
+		self._refreshSeriesState()
+		self._gameState = Game.getPlayerLastGame(player_id=self._playerState['id'], series_id=self._seriesState['id'])
+
+		if not self._gameState:
+			raise GameWasNotFoundError
+
+		if self._gameState['password']:
+			if self._gameState['password'] != self._playerState['game_password'] or self._playerState['game_id'] != self._gameState['game_id']:
+				if self._gameState['password'] != password:
+					return GameAccessDeniedError
+
+		if not self._gameState:
+			raise GameWasNotFoundError
+
+		if self._gameState['status'] == Game.STATUS_ENDED:
+			if self._createGameAutomatically():
+				return self._refreshGameState()
+			raise GameWasNotCreateError
+
+		if self._gameState['status'] == Game.STATUS_PREPARATION:
+			raise GameWasNotStartError
+
+		self.roundSettings = self._SETTINGS[json.loads(self._gameState['settings'])]
+
+	def _refreshSeriesState(self, password=None):
+
+		self._refreshPlayerState()
+		self._seriesState = Series.get(series_id=self._playerState['series_id'])
+
+		if not self._seriesState:
+			raise SeriesWasNotFoundError
+
+		if self._seriesState['password']:
+			if self._seriesState['password'] != self._playerState['series_password'] or self._playerState['series_id'] != self._seriesState['id']:
+				if self._seriesState['password'] != password:
+					raise SeriesAccessDeniedError
+
+	def createGame(self, status=Game.STATUS_PREPARATION):
+		self._refreshSeriesState()
+
+		createdGames = self.game.getList(
+			series_is=self._seriesState['id'],
+			status=[Base_Game.STATUS_PREPARATION, Base_Game.STATUS_IN_PROGRESS]
 		)
-		self.roundSettings = self._ROUNDS[self.roundNumber]
+		if createdGames and len(createdGames) >= self._seriesState['settings']['maxOpenedGamesOverall']:
+			return """
+				Слишком много активных игр в серии.
+				Максимум активных игр: %d
+			""" % self._seriesState['settings']['maxOpenedGamesOverall']
+
+		createdGamesByPlayer = self.game.getList(
+			creator_id=self._playerState['id'],
+			series_is=self._seriesState['id'],
+			status=[Base_Game.STATUS_PREPARATION, Base_Game.STATUS_IN_PROGRESS]
+		)
+		if createdGamesByPlayer and len(createdGamesByPlayer) >= self._seriesState['settings']['maxOpenedGamesPerPlayer']:
+			return """
+				Тобой создано слишком много активных игр в серии.
+				Заверши предыдущие, чтобы создавать новые.
+				Максимум активных игр на игрока: %d
+			""" % self._seriesState['settings']['maxOpenedGamesPerPlayer']
+
+		game = self.game.create(
+			player_id=self._playerState['id'],
+			series_id=self._seriesState['id'],
+			status=status
+		)
+
+		response = """
+			Игра %d успешно создана
+			Для задания пароля используй /gameset
+			Для запуска игры - /gamestart
+		""" % game['id']
+
+		return response
+
+	def _createGameAutomatically(self):
+		if self._seriesState['settings']['autoCreateGames']:
+			self.createGame(status=Game.STATUS_IN_PROGRESS)
+			newGame = Game.getPlayerLastGame(player_id=self._playerState['id'], series_id=self._seriesState['id'])
+			if newGame['status'] != Game.STATUS_IN_PROGRESS:
+				raise GameAutoCreatingFailedError
+			else:
+				return True
+		return False
+
+	def joinGame(self, game_id=None, password=None):
+		if password:
+			password = md5(password + Config.get('MISC.password_salt'))
+		self._refreshSeriesState()
+		if not game_id:
+			game = Game.getSeriesLastGame(series_id=self._seriesState['id'])
+			if not game:
+				return "Похоже, в этой серии игр ещё не начато ни одной игры. Будь первым!"
+		else:
+			game = Game.get(game_id=game_id)
+			if not game:
+				return "В этой серии нет игры с ID %d" % game_id
+
+		if game['status'] == Game.STATUS_PREPARATION:
+			return "Создатель последней игры ещё не настроил её правила. Пни его!"
+
+		pwd = dict()
+		if game['password']:
+			if game['password'] != self._playerState['game_password'] or self._playerState['game_id'] != game['id']:
+				if game['password'] != password:
+					return "Тебе не в этой игре с ID %d. Попробуй ввести правильный пароль" % game['id']
+				pwd['password'] = password
+
+		if game['status'] == Game.STATUS_ENDED:
+			if not self._createGameAutomatically():
+				raise GameWasNotCreateError
+
+		Player.joinGame(
+			player_id=self._playerState['id'],
+			role=Series.PLAYER_ROLE_MEMBER,
+			series_id=game_id,
+			**pwd
+		)
+
+		self._refreshGameState(password=password)
+
+		return "Иииха! Ты присовокупился к игре с ID %d" % game_id
+
+	def joinSeries(self, series_id, password=None):
+		if password:
+			password = md5(password + Config.get('MISC.password_salt'))
+		series = Series.get(series_id=series_id)
+		if not series:
+			return "Иисусе, да нет серии игры с таким ID!"
+
+		pwd = dict()
+		if series['password']:
+			if series['password'] != self._playerState['series_password'] or self._playerState['series_id'] != series['id']:
+				if series['password'] != password:
+					return "Тебе не рады в серии игр с ID %d. Попробуй ввести правильный пароль" % series['id']
+				pwd['password'] = password
+
+		Player.joinSeries(
+			player_id=self._playerState['id'],
+			role=Series.PLAYER_ROLE_MEMBER,
+			series_id=series_id,
+			**pwd
+		)
+
+		self._refreshSeriesState(password=password)
+
+		return "Класс. Ты присоединился к серии игр с ID %d" % series_id
+
+	@staticmethod
+	def getSeriesList():
+		seriesList = Series.getList()
+		if not seriesList:
+			return "Нет ни одной активной серии игр. Да быть такого не может!"
+		responseList = []
+		for series in seriesList:
+			responseList.append("<b>%s</b>: %s" % (series['id'], series['name']))
+		return "\n".join(responseList)
+
 
 	def addWord(self, update):
 		"""
@@ -63,7 +224,7 @@ class Base_Game:
 		"""
 		self._refreshGameState()
 
-		if self.roundStatus != Round.STATUS_PREPARATION:
+		if self._game['roundStatus'] != Round.STATUS_PREPARATION:
 			return "Слишком поздно вертеть задом. Раунд уже началася. Дождись окончания раунда"
 
 		return Word.add(
@@ -71,7 +232,7 @@ class Base_Game:
 			player_id=Player.getId(update.message.chat),
 			wordsLimit=self.roundSettings['minWordsPerPlayer'],
 			wordMinLength=self.roundSettings['minWordLength'],
-			**self.gameState
+			**self._game
 		)[1]
 
 	def start(self):
@@ -373,8 +534,8 @@ class Base_Game:
 		wordsCount = 0
 		wordsList = []
 		weightsListParsed = dict()
-		if wordsLimit > self._GENERATED_GAME_HARDCORE_WORDS_LIMIT:
-			return "Слишком много словцов для генерации. Пожалуй. Максимум в игре могут участвовать %d словцов" % self._GENERATED_GAME_HARDCORE_WORDS_LIMIT
+		if wordsLimit > self._GENERATED_GAME_HARD_WORDS_LIMIT:
+			return "Слишком много словцов для генерации. Пожалуй. Максимум в игре могут участвовать %d словцов" % self._GENERATED_GAME_HARD_WORDS_LIMIT
 		if not params:
 			params = {}
 		while wordsCount < wordsLimit:
@@ -571,37 +732,33 @@ class Base_Game:
 			)
 			wordsAdded += 1
 
-	@staticmethod
-	def _init():
-		game_id = DB.execute("INSERT INTO game SET createDate = NOW()").lastrowid
-		logging.info("New game was started. ID: %d" % game_id)
-		# addRandomPlayer
-		return game_id
-
-	@staticmethod
-	def _getId(game_id=None, doNotInitNewGame=False):
-		condition = ("status = '%s'" % Base_Game.STATUS_IN_PROGRESS) if not game_id else " AND id = %d" % game_id
-		game = DB.getOne("SELECT * FROM game WHERE %s ORDER BY id DESC" % condition)
-		if doNotInitNewGame and not game:
-			return None
-		game_id = Base_Game._init() if not game else game['id']
-		return game_id, Round.getId(game_id)
-
-	@staticmethod
-	def _get(game_id=None, status=None):
-		if not game_id and not status:
-			return None
-		condition = ""
-		if status:
-			condition += " AND status = '%s'" % status
-		if game_id:
-			condition += " AND id = %d" % game_id
-		return DB.getOne("SELECT * FROM game WHERE 1 " + condition + " ORDER BY id DESC")
-
-	@staticmethod
-	def _update(**params):
-		return DB.execute("UPDATE game SET winner_id = %(winner_id)s, status = %(status)s WHERE id = %(game_id)s", params)
-
 	def _start(self, words, weights):
 		raise NotImplementedError("Method must be override")
 
+
+class GameWasNotCreateError(Exception):
+	pass
+
+
+class GameWasNotFoundError(Exception):
+	pass
+
+
+class GameWasNotStartError(Exception):
+	pass
+
+
+class SeriesWasNotFoundError(Exception):
+	pass
+
+
+class SeriesAccessDeniedError(Exception):
+	pass
+
+
+class GameAccessDeniedError(Exception):
+	pass
+
+
+class GameAutoCreatingFailedError(Exception):
+	pass

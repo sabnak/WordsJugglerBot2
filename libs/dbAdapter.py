@@ -1,6 +1,8 @@
 from sqlalchemy import create_engine
 import sys
 from libs.coll import Config
+import json
+from collections import OrderedDict
 
 sys.setrecursionlimit(3000)
 
@@ -36,22 +38,27 @@ class DB:
 		return q.execute(query, {} if not params else params)
 
 	@staticmethod
-	def getAll(query, params=None):
+	def getAll(query, params=None, jsonFields=None):
 		rows = DB.execute(query, params=params)
 		for row in rows:
-			yield dict(row)
+			row = dict(row)
+			if jsonFields:
+				for fieldName in jsonFields:
+					if fieldName in row:
+						row[fieldName] = json.loads(row[fieldName], object_pairs_hook=OrderedDict)
+			yield row
 
 	@staticmethod
-	def getList(query, params=None):
-		rows = DB.getAll(query, params=params)
+	def getList(query, params=None, jsonFields=None):
+		rows = DB.getAll(query, jsonFields=jsonFields, params=params)
 		result = []
 		for row in rows:
 			result.append(row)
 		return result
 
 	@staticmethod
-	def getOne(query, params=None):
-		rows = DB.getAll(query, params=params)
+	def getOne(query, params=None, jsonFields=None):
+		rows = DB.getAll(query, jsonFields=jsonFields, params=params)
 		for row in rows:
 			return row
 		return None

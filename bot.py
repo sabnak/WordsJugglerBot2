@@ -1,34 +1,93 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 from game.typeA import Game
+from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, SeriesNotDefinedError
 import re
 from libs.coll import Config, parseStringArgs, ArgumentParserError
+from functools import wraps
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 
 
 updater = Updater(token=Config.get('TELEGRAM.token'))
 dispatcher = updater.dispatcher
-game = Game()
+
+_RESTRICTION_ADMINS_ONLY = True
 
 
-def start(bot, update):
-	logging.info(update)
+def general(func):
+	@wraps(func)
+	def wrapped(bot, update, *args, **kwargs):
+		game = Game(update.message.chat.id)
+		logging.info(update)
+		if _RESTRICTION_ADMINS_ONLY and str(update.effective_user.id) not in Config.get('TELEGRAM.admins'):
+			sendMsg(bot, update, "Со мной что-то делают. Отвали!")
+			return
+		try:
+			return func(game, bot, update, *args, **kwargs)
+		except GameWasNotFoundError:
+			sendMsg(bot, update, "О-хо-хо! Ты до сих пор не поучаствовал ни в одной игре!\nНачни новую командой /gamestart или просоединись к существующей - /gamejoin")
+			return
+		except GameWasNotCreateError:
+			sendMsg(bot, update, "Последняя игра серии была завершена.\nНачни новую командой /gamestart или просоединись к существующей - /gamejoin")
+			return
+		except GameWasNotStartError:
+			sendMsg(bot, update, "Игра найдена, но её создатель ещё не решился её начать")
+			return
+		except SeriesNotDefinedError:
+			sendMsg(bot, update, "Прежде чем начать играть, надо присоединиться к какой-нибудь серии игр. Для списка доступных серий наберите /serieslist")
+			return
+
+	return wrapped
+
+
+@general
+def start(game, bot, update):
 	sendMsg(bot, update, commandsList)
 
 
-def catchWord(bot, update):
-	logging.info(update)
+@general
+def createGame(game, bot, update, args):
+	response = game.createGame()
+	return sendMsg(bot, update, response)
+
+
+@general
+def joinGame(game, bot, update, args):
+	response = game.joinGame()
+	return sendMsg(bot, update, response)
+
+
+@general
+def joinSeries(game, bot, update, args):
+	try:
+		series_id = int(args[0])
+		password = str(args[1]) if len(args) > 1 else None
+	except (ValueError, IndexError):
+		sendMsg(bot, update, "ID серии - число, блин.")
+		return
+	response = game.joinSeries(series_id, password)
+	sendMsg(bot, update, response)
+
+
+@general
+def getSeriesList(game, bot, update):
+	sendMsg(bot, update, game.getSeriesList())
+
+
+@general
+def catchWord(game, bot, update):
 	response = game.addWord(update)
 	sendMsg(bot, update, response)
 
 
-def iAmSoStupid(bot, update):
+@general
+def iAmSoStupid(game, bot, update):
 	sendMsg(bot, update, "Говори на понятном мне языке. Используй понятные слова.\nВот тебе инструкция: /help")
 
 
-def showMyWordsPerGame(bot, update, args):
-	logging.info(update)
+@general
+def showMyWordsPerGame(game, bot, update, args):
 	game_id = int(args[0]) if args else None
 	wordsList = game.getPlayerWordsByGame(update, game_id)
 	if not wordsList:
@@ -39,8 +98,8 @@ def showMyWordsPerGame(bot, update, args):
 	sendMsg(bot, update, response)
 
 
-def showMyWordsPerRound(bot, update, args):
-	logging.info(update)
+@general
+def showMyWordsPerRound(game, bot, update, args):
 	round_id = int(args[0]) if args else None
 	wordsList = game.getPlayerWordsByRound(update, round_id)
 	if not wordsList:
@@ -51,8 +110,8 @@ def showMyWordsPerRound(bot, update, args):
 	sendMsg(bot, update, response)
 
 
-def updateMyWord(bot, update, args):
-	logging.info(update)
+@general
+def updateMyWord(game, bot, update, args):
 	if len(args) != 2:
 		response = "Слева - старое словцо, справа - новое словцо. ДЕЛАЙ ТАК!"
 		sendMsg(bot, update, response)
@@ -61,8 +120,8 @@ def updateMyWord(bot, update, args):
 	sendMsg(bot, update, response)
 
 
-def getRandomWord(bot, update):
-	logging.info(update)
+@general
+def getRandomWord(game, bot, update):
 	word = game.getRandom('ushakov')
 	if not word:
 		response = "Очень странно. Не могу получить случайное словцо!"
@@ -72,8 +131,8 @@ def getRandomWord(bot, update):
 	sendMsg(bot, update, response)
 
 
-def generateBattle(bot, update, args):
-	logging.info(update)
+@general
+def generateBattle(game, bot, update, args):
 	if not args:
 		sendMsg(bot, update, "Живо передал параметры битвы в правильном формате!")
 		return
@@ -142,7 +201,8 @@ def generateBattle(bot, update, args):
 	sendMsg(bot, update, response)
 
 
-def getGameInfo(bot, update, args):
+@general
+def getGameInfo(game, bot, update, args):
 	if not args:
 		game_id = None
 	else:
@@ -166,7 +226,8 @@ def getGameInfo(bot, update, args):
 	sendMsg(bot, update, response)
 
 
-def getGameList(bot, update, args):
+@general
+def getGameList(game, bot, update, args):
 	limit = 10
 	if args:
 		try:
@@ -174,25 +235,24 @@ def getGameList(bot, update, args):
 		except ValueError:
 			sendMsg(bot, update, "Количество игр - число, блин.")
 			return
-	logging.info(update)
 	response = game.getList(limit)
 	sendMsg(bot, update, response)
 
 
-def setState(bot, update):
-	logging.info(update)
+@general
+def setState(game, bot, update):
 	response = game.setPlayerState(update)
 	sendMsg(bot, update, response)
 
 
-def fight(bot, update):
-	logging.info(update)
+@general
+def fight(game, bot, update):
 	response = game.start()
 	sendMsg(bot, update, response)
 
 
-def getGameResults(bot, update, args):
-	logging.info(update)
+@general
+def getGameResults(game, bot, update, args):
 	if not args:
 		game_id = None
 	elif len(args) > 1:
@@ -210,14 +270,14 @@ def getGameResults(bot, update, args):
 	sendMsg(bot, update, response)
 
 
-def getCandidates(bot, update):
-	logging.info(update)
+@general
+def getCandidates(game, bot, update):
 	response = game.getCandidates(update)
 	sendMsg(bot, update, response)
 
 
-def vote(bot, update, args):
-	logging.info(update)
+@general
+def vote(game, bot, update, args):
 	string = ' '.join(args).lower()
 	if not string:
 		response = """
@@ -229,8 +289,8 @@ def vote(bot, update, args):
 	sendMsg(bot, update, response)
 
 
-def getMyVotes(bot, update):
-	logging.info(update)
+@general
+def getMyVotes(game, bot, update):
 	response = game.getSelfVotes(update)
 	sendMsg(bot, update, response)
 
@@ -239,11 +299,16 @@ def sendMsg(bot, update, msg):
 	msg = re.sub(r"(?<=\n)[\s]+", "", msg) if msg else "Мне нечего тебе сказать, чёрт возьми!"
 	bot.send_message(chat_id=update.message.chat_id, text=msg, parse_mode="html")
 
+
+
 [
 	dispatcher.add_handler(handler) for handler in [
 		CommandHandler(['start', 'help', 'h', 'помощь'], start),
 		CommandHandler(['gameinfo', 'gi', 'играинфо'], getGameInfo, pass_args=True),
 		CommandHandler(['gamelist', 'gl', 'играсписок'], getGameList, pass_args=True),
+		CommandHandler(['gamecreate', 'gc', 'играсоздать'], createGame, pass_args=True),
+		CommandHandler(['seriesjoin', 'sj', 'серияприсоединиться'], joinSeries, pass_args=True),
+		CommandHandler(['serieslist', 'sl', 'серияспиок'], getSeriesList),
 		CommandHandler(['mywordsbygame', 'wg', 'моисловаигра'], showMyWordsPerGame, pass_args=True),
 		CommandHandler(['mywordsbyround', 'wr', 'моисловараунд'], showMyWordsPerRound, pass_args=True),
 		CommandHandler(['update', 'u', 'обновить', 'о'], updateMyWord, pass_args=True),

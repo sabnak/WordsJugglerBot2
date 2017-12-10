@@ -6,6 +6,7 @@ import configparser
 import os
 import pprint
 import argparse
+import hashlib
 
 
 class Config:
@@ -107,6 +108,10 @@ def simpleDictMerge(x, y):
 	return z
 
 
+def md5(string):
+	return hashlib.md5(string if isinstance(string, bytes) else str(string).encode()).hexdigest()
+
+
 def bestOfMultiple(words, weights, maxWeight=.80, percentPerPoint=5):
 	weightsDict = OrderedDict([words[x], [x, y]] for x, y in enumerate([1 / len(words)] * len(words)))
 	pointsDict = dict()
@@ -157,6 +162,9 @@ def bestOfMultipleSmart(words, weights, m=.90, e=3):
 
 	if not coefficient:
 		coefficient = 1
+
+	# TODO:
+	# Что если баллы слова/ сумму баллов = 1 его вес 100
 
 	_parsedWeight = [
 		(

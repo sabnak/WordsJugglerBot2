@@ -59,17 +59,30 @@ class Round:
 		params = dict(game_id=game_id, status=Round.STATUS_ENDED)
 		lastRound = DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s ORDER BY number DESC LIMIT 1", dict(game_id=game_id))
 		if not lastRound:
-			return Round._start(game_id, 1)
+			round_id = Round._start(game_id=game_id, number=1)
+			logging.info("New %d round for game_id %d was started. ID: %s" % (1, game_id, round_id))
+			Round._registerRoundInGame(game_id=game_id, round_id=round_id)
+			return round_id
 		if lastRound['status'] != Round.STATUS_ENDED:
 			return lastRound['id']
 		params['number'] = lastRound['number'] + 1
 		if not DB.getOne("SELECT * FROM round WHERE game_id = %(game_id)s LIMIT 1", params):
 			params['number'] = 1
 		if 'number' in params:
-			round_id = Round._start(game_id, params['number'])
+			round_id = Round._start(game_id=game_id, number=params['number'])
 			logging.info("New %d round for game_id %d was started. ID: %s" % (params['number'], game_id, round_id))
+			Round._registerRoundInGame(game_id=game_id, round_id=round_id)
 			return round_id
 
 	@staticmethod
-	def _start(game_id, number):
-		return DB.execute("INSERT INTO round SET game_id = %(game_id)s, number = %(number)s", dict(game_id=game_id, number=number)).lastrowid
+	def _registerRoundInGame(**params):
+		DB.execute("""
+			INSERT INTO game_has_round
+			SET
+				game_id = %(game_id)s,
+				round_id = %(round_id)s
+		""", params)
+
+	@staticmethod
+	def _start(**params):
+		return DB.execute("INSERT INTO round SET game_id = %(game_id)s, number = %(number)s", params).lastrowid
