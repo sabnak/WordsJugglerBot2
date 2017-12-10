@@ -1,5 +1,4 @@
 from libs.dbAdapter import DB
-import logging
 import random
 from collections import OrderedDict
 from libs.coll import bestOfMultipleSmart, md5, Config
@@ -31,6 +30,8 @@ class Base_Game:
 
 	_GENERATED_GAME_HARD_WORDS_LIMIT = 100
 	_MAX_OPENED_GAMES_PER_PLAYER = 5
+	PASSWORD_MIN_LENGTH = 3
+	PASSWORD_NO_PASSWORD_MARK = "без пароля"
 
 	STATUS_PREPARATION = "preparation"
 	STATUS_IN_PROGRESS = "in progress"
@@ -49,15 +50,15 @@ class Base_Game:
 		if self._playerState and not telegram_id:
 			telegram_id = self._playerState['telegram_id']
 		self._playerState = Player.get(telegram_id=telegram_id)
-		print(self._playerState)
 
-	def _refreshGameState(self, password=None):
+	def _refreshGameState(self, password=None, notStartedGamesIsAllowed=False):
 		"""
 		Updates game state (game_id, round_id etc.)
 		Must be calls in every public method
 		"""
 		self._refreshSeriesState()
 		self._gameState = Game.getPlayerLastGame(player_id=self._playerState['id'], series_id=self._seriesState['id'])
+		self._gameState['game_id'] = self._gameState['id']
 
 		if not self._gameState:
 			raise GameWasNotFoundError
@@ -75,10 +76,17 @@ class Base_Game:
 				return self._refreshGameState()
 			raise GameWasNotCreateError
 
-		if self._gameState['status'] == Game.STATUS_PREPARATION:
+		if self._gameState['status'] == Game.STATUS_PREPARATION and not notStartedGamesIsAllowed:
 			raise GameWasNotStartError
 
-		self.roundSettings = self._SETTINGS[json.loads(self._gameState['settings'])]
+		self._gameState['round'] = Round.getLast(game_id=self._gameState['game_id'])
+		self._gameState['roundStatus'] = self._gameState['round']['status']
+		self._gameState['roundNumber'] = self._gameState['round']['number']
+		self._gameState['round_id'] = self._gameState['round']['id']
+		
+		self._gameSettings = {int(r): s for r, s in self._gameState['settings']['round'].items()}
+		self._roundSettings = self._gameSettings[self._gameState['round']['number']]
+		del self._gameState['settings']
 
 	def _refreshSeriesState(self, password=None):
 
@@ -121,16 +129,65 @@ class Base_Game:
 		game = self.game.create(
 			player_id=self._playerState['id'],
 			series_id=self._seriesState['id'],
+			settings=json.dumps(self._SETTINGS),
 			status=status
 		)
 
 		response = """
-			Игра %d успешно создана
-			Для задания пароля используй /gameset
-			Для запуска игры - /gamestart
+			Игра <b>%d</b> успешно создана
+			Для просмотра настроек испрльзуй "/gamesettings"
+			Для задания пароля используй "/gameset password ПАРОЛЬ"
+			Для изменения других настроек используй\n "/gameset НОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ"
+			Для запуска игры используй "/gamestart"
 		""" % game['id']
 
 		return response
+
+	def startGame(self):
+		self._refreshGameState(notStartedGamesIsAllowed=True)
+		if self._playerState['game_id'] == self._gameState['game_id'] and self._playerState['game_role'] == Game.PLAYER_ROLE_ADMIN:
+			Game.setGameStatus(game_id=self._gameState['game_id'], status=Game.STATUS_IN_PROGRESS)
+			return "Ииииигра началась! Теперь людишки могут к ней присоединяться"
+		return "Не могу начать игру. Может у тебя недостаточно прав? Игру могут начинать только админы"
+
+	def getGameSettings(self):
+		self._refreshGameState(notStartedGamesIsAllowed=True)
+		return "\n".join([
+			"Серия ID %d. Игра ID %d" % (self._seriesState['id'], self._gameState['game_id']),
+			"Дата создания: %s" % self._gameState['createDate'].strftime('%Y-%m-%d %H:%M:%S'),
+			"Статус: %s" % self._gameState['status'],
+			"Пароль: %s " % ("да" if self._gameState['password'] else "нет"),
+			"<pre> </pre>",
+			"Список параметров",
+			"Настройки раундов:",
+			"\n ".join(
+				[
+					"<b>Раунд №%s</b>\n%s" % (
+						number,
+						"\n ".join(
+							[
+								"%s: %s" % (
+									name,
+									value
+								) for name, value in settings.items()
+							]
+						)
+					) for number, settings in self._gameState['settings']['round'].items()
+				]
+			),
+			"<pre> </pre>",
+			"Для задания пароля используй \"/gameset password ПАРОЛЬ\"",
+			"Для изменения других настроек используй\n \"/gameset НОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ\"",
+			"Для запуска игры используй \"/gamestart\""
+		])
+
+	def setGamePassword(self, password):
+		self._refreshGameState(notStartedGamesIsAllowed=True)
+		password = self._generatePassword(password)
+		if self._playerState['game_id'] == self._gameState['game_id'] and self._playerState['game_role'] == Game.PLAYER_ROLE_ADMIN:
+			Game.setGamePassword(game_id=self._gameState['game_id'], password=password)
+			return "Пароль успешно обновлён. Скорее расскажи его всем!"
+		return "Хе-хе. Похоже, у тебя не хватает прав для задания пароля для игры!"
 
 	def _createGameAutomatically(self):
 		if self._seriesState['settings']['autoCreateGames']:
@@ -144,7 +201,7 @@ class Base_Game:
 
 	def joinGame(self, game_id=None, password=None):
 		if password:
-			password = md5(password + Config.get('MISC.password_salt'))
+			password = self._generatePassword(password)
 		self._refreshSeriesState()
 		if not game_id:
 			game = Game.getSeriesLastGame(series_id=self._seriesState['id'])
@@ -156,7 +213,7 @@ class Base_Game:
 				return "В этой серии нет игры с ID %d" % game_id
 
 		if game['status'] == Game.STATUS_PREPARATION:
-			return "Создатель последней игры ещё не настроил её правила. Пни его!"
+			return "Создатель игры ещё не настроил её правила. Пни его!"
 
 		pwd = dict()
 		if game['password']:
@@ -178,11 +235,11 @@ class Base_Game:
 
 		self._refreshGameState(password=password)
 
-		return "Иииха! Ты присовокупился к игре с ID %d" % game_id
+		return "Иииха! Ты присовокупился к игре с ID %d серии игр с ID %d" % (game_id, self._seriesState['id'])
 
 	def joinSeries(self, series_id, password=None):
 		if password:
-			password = md5(password + Config.get('MISC.password_salt'))
+			password = self._generatePassword(password)
 		series = Series.get(series_id=series_id)
 		if not series:
 			return "Иисусе, да нет серии игры с таким ID!"
@@ -215,7 +272,6 @@ class Base_Game:
 			responseList.append("<b>%s</b>: %s" % (series['id'], series['name']))
 		return "\n".join(responseList)
 
-
 	def addWord(self, update):
 		"""
 		Adds word into current round of the game
@@ -224,15 +280,15 @@ class Base_Game:
 		"""
 		self._refreshGameState()
 
-		if self._game['roundStatus'] != Round.STATUS_PREPARATION:
+		if self._gameState['roundStatus'] != Round.STATUS_PREPARATION:
 			return "Слишком поздно вертеть задом. Раунд уже началася. Дождись окончания раунда"
 
 		return Word.add(
 			word=update.message.text,
 			player_id=Player.getId(update.message.chat),
-			wordsLimit=self.roundSettings['minWordsPerPlayer'],
-			wordMinLength=self.roundSettings['minWordLength'],
-			**self._game
+			wordsLimit=self._roundSettings['minWordsPerPlayer'],
+			wordMinLength=self._roundSettings['minWordLength'],
+			**self._gameState
 		)[1]
 
 	def start(self):
@@ -242,8 +298,8 @@ class Base_Game:
 		"""
 		self._refreshGameState()
 
-		groups = Group.get(groupByGroupNumber=True, **self.gameState)
-		if self.roundStatus != Round.STATUS_IN_PROGRESS:
+		groups = Group.get(groupByGroupNumber=True, **self._gameState)
+		if self._gameState['roundStatus'] != Round.STATUS_IN_PROGRESS:
 			return "Не надо огня! Рано ещё начинать рубку. Предлагайте свои словцы и голосуйте за другие"
 
 		lazyPlayers = dict()
@@ -265,10 +321,10 @@ class Base_Game:
 				if info['electorPlayer_id']:
 					statsByPlayer[info['player_id']]['words'][info['word']][info['electorPlayer_id']] = dict(name=info['electorName'], weight=info['weight'])
 				if info['telegram_id'] != self._RANDOM_PLAYER['id']:
-					playerSpentWeight = Vote.getPlayerSumOfWeightPerRound(player_id=info['player_id'], **self.gameState)
-					if playerSpentWeight < self.roundSettings['maxWeightPerRound']:
+					playerSpentWeight = Vote.getPlayerSumOfWeightPerRound(player_id=info['player_id'], **self._gameState)
+					if playerSpentWeight < self._roundSettings['maxWeightPerRound']:
 						lazyPlayers[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
-					if playerSpentWeight > self.roundSettings['maxWeightPerRound']:
+					if playerSpentWeight > self._roundSettings['maxWeightPerRound']:
 						cheaters[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
 				if info['word'] not in wordsByWord:
 					wordsByWord[info['word']] = info
@@ -294,7 +350,7 @@ class Base_Game:
 				responseList.append("А этим засранцам как-то удалось вложить больше баллов:\n%s" % " ".join("%s (%d)" % (x['name'], x['spentWeight']) for x in lazyPlayers.values()))
 			return "\n".join(responseList)
 		responseList = [
-			"Игра от <b>%(gameCreateDate)s</b>. Раунд <b>%(roundNumber)d</b>" % self.gameState
+			"Игра от <b>%(gameCreateDate)s</b>. Раунд <b>%(roundNumber)d</b>" % self._gameState
 		]
 		winners = []
 
@@ -302,18 +358,18 @@ class Base_Game:
 			winnerWord, stats = self._start(group['words'], group['weights'])
 			stats['players'] = statsByPlayer
 			winners.append(wordsByWord[winnerWord]['player_id'])
-			responseList += self._getPrettyGroupResultsList(stats, winnerWord, groupNumber, **self.gameState)
+			responseList += self._getPrettyGroupResultsList(stats, winnerWord, groupNumber, **self._gameState)
 			Log.save(
 				data=json.dumps(stats),
 				group_id=wordsByWord[winnerWord]['group_id'],
 				winnerPlayer_id=wordsByWord[winnerWord]['player_id'],
 				winnerWord_id=wordsByWord[winnerWord]['word_id'],
-				**self.gameState
+				**self._gameState
 			)
 
-		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self.gameState)
-		if self.roundNumber + 1 not in self._ROUNDS:
-			self._update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self.gameState)
+		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self._gameState)
+		if self._gameState['roundNumber'] + 1 not in self._roundSettings:
+			self.game.update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self._gameState)
 
 		return "\n".join(responseList)
 
@@ -397,16 +453,16 @@ class Base_Game:
 		"""
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
-		if self.roundStatus == Round.STATUS_IN_PROGRESS:
+		if self._gameState['roundStatus'] == Round.STATUS_IN_PROGRESS:
 			return "Ахаха. Раунд-то уже начался. Поздно теперь крутить себе соски. Надейся на лучшее!"
-		if Player.getState(player_id=player_id, **self.gameState):
+		if Player.getState(player_id=player_id, **self._gameState):
 			return "Ты не можешь обновить своё убогое словцо, если ты уже приготовился играть, вонючка!"
 		return Word.update(
 			oldWord=oldWord,
 			newWord=newWord,
 			player_id=player_id,
-			wordMinLength=self.roundSettings['minWordLength'],
-			**self.gameState
+			wordMinLength=self._roundSettings['minWordLength'],
+			**self._gameState
 		)
 
 	@staticmethod
@@ -488,7 +544,7 @@ class Base_Game:
 
 	@staticmethod
 	def _getGameLog(**params):
-		game = Base_Game._get(**params)
+		game = Game.getFullInfo(**params)
 		if not game:
 			return None
 		return Log.get(game_id=game['id'])
@@ -510,14 +566,12 @@ class Base_Game:
 		) if round_id else Word.getListByRoundId(
 				fullAccess=fullAccess,
 				player_id=player_id,
-				**self.gameState
+				**self._gameState
 			)
 
-	@staticmethod
-	def getPlayerWordsByGame(update, game_id=None, fullAccess=False):
-		player_id = Player.getId(update.message.chat)
-		game_id, round_id = Base_Game._getId(game_id)
-		return Word.getListByGameId(game_id, player_id, fullAccess)
+	def getPlayerWordsByGame(self, fullAccess=False):
+		self._refreshGameState()
+		return Word.getListByGameId(player_id=self._playerState['id'], fullAccess=fullAccess, **self._gameState)
 
 	def getRandom(self, dictionaryName, minLength=5):
 		attemptsLimit = 10
@@ -546,24 +600,24 @@ class Base_Game:
 			weightsListParsed[wordsCount] = [(randomWord, weightsList[wordsCount] if len(weightsList) >= wordsCount + 1 else 0)]
 			wordsCount += 1
 		winnerWord, stats = bestOfMultipleSmart(wordsList, weightsListParsed, **params)
-		responseList = self._getPrettyGroupResultsList(stats, winnerWord, isGeneratedGame=True, **self.gameState)
+		responseList = self._getPrettyGroupResultsList(stats, winnerWord, isGeneratedGame=True, **self._gameState)
 		return "\n".join(responseList)
 
 	def setPlayerState(self, update):
 		self._refreshGameState()
-		if self.roundStatus != Round.STATUS_PREPARATION:
+		if self._gameState['roundStatus'] != Round.STATUS_PREPARATION:
 			return "Поздняк метаться. Раунд уже запущен. Молись!"
 		player_id = Player.getId(update.message.chat)
-		playerWords = Word.getListByRoundId(player_id=player_id, **self.gameState)
-		if len(playerWords) < self.roundSettings['minWordsPerPlayer']:
-			return "Надо предложить побольше словцов, чтобы быть готовым. Осталось предложить: %d/%d" % (len(playerWords), self.roundSettings['minWordsPerPlayer'])
-		return "Ты больше не готов к игре в этом раунде, трусиха" if not Player.setState(player_id=player_id, round_id=self.round_id) else \
+		playerWords = Word.getListByRoundId(player_id=player_id, **self._gameState)
+		if len(playerWords) < self._roundSettings['minWordsPerPlayer']:
+			return "Надо предложить побольше словцов, чтобы быть готовым. Осталось предложить: %d/%d" % (len(playerWords), self._roundSettings['minWordsPerPlayer'])
+		return "Ты больше не готов к игре в этом раунде, трусиха" if not Player.setState(player_id=player_id, round_id=self._gameState['round_id']) else \
 			"Ты изготовился к игре. Удач!"
 
 	def getCandidates(self, update):
 		self._refreshGameState()
 
-		fullInfoWordsList = Word.getListByRoundId(fullAccess=True, **self.gameState)
+		fullInfoWordsList = Word.getListByRoundId(fullAccess=True, **self._gameState)
 		wordsByPlayer = dict()
 		self._addRandomWord()
 		randomPlayersList = []
@@ -575,7 +629,7 @@ class Base_Game:
 			if wordInfo['player_id'] not in wordsByPlayer:
 				wordsByPlayer[wordInfo['player_id']] = dict(
 					words=[],
-					isReady=Player.getState(player_id=wordInfo['player_id'], round_id=self.round_id),
+					isReady=Player.getState(player_id=wordInfo['player_id'], round_id=self._gameState['round_id']),
 					name=wordInfo['name'],
 					telegram_id=wordInfo['telegram_id'],
 					player_id=wordInfo['player_id'],
@@ -583,14 +637,14 @@ class Base_Game:
 			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word'], wordInfo['player_id']))
 		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] != self._RANDOM_PLAYER['id']]
 
-		if len(wordsByPlayer) < self.roundSettings['minPlayers'] + len(randomPlayersList):
-			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer) - len(randomPlayersList), self.roundSettings['minPlayers'])
-		if len(wordsByPlayer) > self.roundSettings['maxPlayers'] - len(randomPlayersList):
-			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer) + len(randomPlayersList), self.roundSettings['maxPlayers'])
+		if len(wordsByPlayer) < self._roundSettings['minPlayers'] + len(randomPlayersList):
+			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer) - len(randomPlayersList), self._roundSettings['minPlayers'])
+		if len(wordsByPlayer) > self._roundSettings['maxPlayers'] - len(randomPlayersList):
+			return "Ого сколько вас набежало. Слишком много вас, а я один (%d/%d). Пошли вон!" % (len(wordsByPlayer) + len(randomPlayersList), self._roundSettings['maxPlayers'])
 		if unreadyPlayers:
 			return "Слишком много тормозов в игре. Я не могу показать тебе словцы, пока все не будут готовы. Список тормозов:\n%s" % " ".join(unreadyPlayers)
-		if self.roundStatus == Round.STATUS_PREPARATION:
-			Round.updateRoundStatus(round_id=self.round_id, status=Round.STATUS_IN_PROGRESS)
+		if self._gameState['roundStatus'] == Round.STATUS_PREPARATION:
+			Round.updateRoundStatus(round_id=self._gameState['round_id'], status=Round.STATUS_IN_PROGRESS)
 		wordsList = self._splitWordsIntoGroups([word for wordsInfo in wordsByPlayer.values() for word in wordsInfo['words']])
 
 		return """
@@ -602,43 +656,43 @@ class Base_Game:
 			Максимальное количество баллов на слово: %d
 		""" % (
 			"\n".join(["Группа %d: %s" % (i, " 0 ".join(w)) for i, w in wordsList.items()]) + " 0",
-			self.roundSettings['maxWeightPerRound'],
-			self.roundSettings['minWeightPerRound'],
-			self.roundSettings['maxWeightPerWord']
+			self._roundSettings['maxWeightPerRound'],
+			self._roundSettings['minWeightPerRound'],
+			self._roundSettings['maxWeightPerWord']
 		)
 
 	def vote(self, update, weightPlain):
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
-		if self.roundStatus == Round.STATUS_PREPARATION:
+		if self._gameState['roundStatus'] == Round.STATUS_PREPARATION:
 			return "Ещё слишком рано голосовать за словцы! Игра ещё не начата!"
-		if self.roundStatus == Round.STATUS_ENDED:
+		if self._gameState['roundStatus'] == Round.STATUS_ENDED:
 			return "Уже поздновато отдавать свой никчёмный голос. Раунд завернёш. Жди начала следующего!"
 		if not re.match(r"^(?:[А-яё]+[\s]*[\d]*[\s]*)+$", weightPlain):
 			return "Ну ё-моё, передай мне свои баллы в правильном формате: \"Словцо 4 Словцо 5\""
 		weightParsed = re.findall(r"(?P<word>[А-яё]+)[\s]*(?P<weight>[\d]+)", weightPlain)
 		responses = []
 		weightPlanned = sum([int(weight) for word, weight in weightParsed])
-		if weightPlanned > self.roundSettings['maxWeightPerRound']:
-			return "Ты распределил слишком много баллов, дурашка (%d/%d)." % (weightPlanned, self.roundSettings['maxWeightPerRound'])
+		if weightPlanned > self._roundSettings['maxWeightPerRound']:
+			return "Ты распределил слишком много баллов, дурашка (%d/%d)." % (weightPlanned, self._roundSettings['maxWeightPerRound'])
 		for word, weight in weightParsed:
 			weight = int(weight)
-			word_id = Word.getIdByName(word=word, **self.gameState)
+			word_id = Word.getIdByName(word=word, **self._gameState)
 			voteStatus, response = self._isPlayerCanVote(player_id=player_id, weight=weight, word_id=word_id, word=word)
 			if response:
 				responses.append(response)
 			if not voteStatus:
 				continue
-			Vote.set(word_id=word_id, weight=weight, player_id=player_id, **self.gameState)
+			Vote.set(word_id=word_id, weight=weight, player_id=player_id, **self._gameState)
 			responses.append("Ура! Я успешно записал %d баллов словцу <b>%s</b>." % (weight, word))
-		return "\n".join(responses) + ("\nТы просадил <b>%d</b>/%d" % (Vote.getPlayerSumOfWeightPerRound(player_id=player_id, **self.gameState), self.roundSettings['maxWeightPerRound']))
+		return "\n".join(responses) + ("\nТы просадил <b>%d</b>/%d" % (Vote.getPlayerSumOfWeightPerRound(player_id=player_id, **self._gameState), self._roundSettings['maxWeightPerRound']))
 
 	def getSelfVotes(self, update):
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
 		overallSpent = Vote.getPlayerSumOfWeightOverall(player_id=player_id)
-		lastGameSpent = Vote.getPlayerSumOfWeightPerGame(player_id=player_id, **self.gameState)
-		votes, lastRoundSpent = Vote.getPlayerWeightPerRoundByWord(player_id=player_id, **self.gameState)
+		lastGameSpent = Vote.getPlayerSumOfWeightPerGame(player_id=player_id, **self._gameState)
+		votes, lastRoundSpent = Vote.getPlayerWeightPerRoundByWord(player_id=player_id, **self._gameState)
 		return """
 			За всё время ты вложил %d очков. За последнюю игру - %d
 			В текущем раунде ты потратил %d/%d очков. Спустил ты их на эти словцы:
@@ -647,13 +701,13 @@ class Base_Game:
 			overallSpent,
 			lastGameSpent,
 			lastRoundSpent,
-			self.roundSettings['maxWeightPerRound'], " ".join("%s (%d)" % (vote['word'], vote['weight']) for vote in votes.values() if vote['weight'])
+			self._roundSettings['maxWeightPerRound'], " ".join("%s (%d)" % (vote['word'], vote['weight']) for vote in votes.values() if vote['weight'])
 		)
 
 	def _getPlainPlayersWeights(self):
 		self._refreshGameState()
 		responseList = []
-		playerVotes, votesSum = Vote.getWeightPerRoundByPlayer(**self.gameState)
+		playerVotes, votesSum = Vote.getWeightPerRoundByPlayer(**self._gameState)
 		responseList.append("Игроки поставили такие баллы:")
 		responseList += ["%s: %s (<b>%d</b>)" % (name, vote['word'], vote['weight']) for name, votes in playerVotes.items() for vote in votes if vote['weight'] > 0]
 		responseList.append("Всего поставлено <b>%d</b> баллов" % votesSum)
@@ -661,32 +715,32 @@ class Base_Game:
 
 	def _isPlayerCanVote(self, player_id, weight, word_id, word):
 		self._refreshGameState()
-		groupNumber, groupWords = Group.getGroupByWord(word_id=word_id, **self.gameState)
-		votes, spentWeight = Vote.getPlayerWeightPerRoundByWord(player_id=player_id, **self.gameState)
-		if weight > self.roundSettings['maxWeightPerWord']:
-			return False, "Нельзя наваливать так много баллов одному словцу (%d/%d)." % (weight, self.roundSettings['maxWeightPerWord'])
-		if word_id not in votes and (spentWeight + weight > self.roundSettings['maxWeightPerRound']):
+		groupNumber, groupWords = Group.getGroupByWord(word_id=word_id, **self._gameState)
+		votes, spentWeight = Vote.getPlayerWeightPerRoundByWord(player_id=player_id, **self._gameState)
+		if weight > self._roundSettings['maxWeightPerWord']:
+			return False, "Нельзя наваливать так много баллов одному словцу (%d/%d)." % (weight, self._roundSettings['maxWeightPerWord'])
+		if word_id not in votes and (spentWeight + weight > self._roundSettings['maxWeightPerRound']):
 			return False, """
 				Я не могу навалить %d баллов словцу <b>%s</b>. Ты уже потратил %d/%d на всякий мусор.
-			""" % (weight, word, spentWeight, self.roundSettings['maxWeightPerRound'])
-		if spentWeight >= self.roundSettings['maxWeightPerRound']:
+			""" % (weight, word, spentWeight, self._roundSettings['maxWeightPerRound'])
+		if spentWeight >= self._roundSettings['maxWeightPerRound']:
 			if word_id not in votes:
 				return False, """
 					Опомнись! Ты уже потратил все свои баллы (%d/%d), чтобы голосовать за слово <b>%s</b>.
-				""" % (spentWeight, self.roundSettings['maxWeightPerRound'], word)
+				""" % (spentWeight, self._roundSettings['maxWeightPerRound'], word)
 			for existedVote in votes.values():
 				respentWeight = spentWeight - (existedVote['weight'] - weight)
-				if existedVote['word_id'] == word_id and weight > existedVote['weight'] and respentWeight > self.roundSettings['maxWeightPerRound']:
+				if existedVote['word_id'] == word_id and weight > existedVote['weight'] and respentWeight > self._roundSettings['maxWeightPerRound']:
 					return False, """
 						Да не хватит тебе баллов, что бы повысить вес этого жалкого словца на столько (%d/%d)
-					""" % (respentWeight, self.roundSettings['maxWeightPerRound'])
+					""" % (respentWeight, self._roundSettings['maxWeightPerRound'])
 		if groupNumber == -1:
 			return False, "Что-то не то. Слово <b>%s</b> найдено сразу в двух группах. Как же так-то?" % word
 		if not groupNumber:
 			return False, "Не могу найти группу, к которой принадлежит словоцо <b>%s</b>. Буду думать..." % word
 		if weight > 0 and \
-			Word.isWordBelongToPlayer(player_id=player_id, word=word, **self.gameState) and \
-			[word for word in groupWords if not Word.isWordBelongToPlayer(player_id=player_id, word=word, **self.gameState)]:
+			Word.isWordBelongToPlayer(player_id=player_id, word=word, **self._gameState) and \
+			[word for word in groupWords if not Word.isWordBelongToPlayer(player_id=player_id, word=word, **self._gameState)]:
 			return False, """
 				Ты совесть-то поимей, подлец.
 				Нельзя голосовать за свои словцы (в том числе и за <b>%s</b>), если на выбор есть словцы других игроков
@@ -695,28 +749,28 @@ class Base_Game:
 
 	def _splitWordsIntoGroups(self, words, expelSuperfluousWords=True):
 		self._refreshGameState()
-		savedGroups = Group.getGroupWords(**self.gameState)
+		savedGroups = Group.getGroupWords(**self._gameState)
 		if savedGroups:
 			return savedGroups
 		random.shuffle(words)
-		groupSize = len(words) if self.roundSettings['groupSize'] == -1 else self.roundSettings['groupSize']
+		groupSize = len(words) if self._roundSettings['groupSize'] == -1 else self._roundSettings['groupSize']
 		groups = OrderedDict((i+1, v) for i, v in enumerate(splitList(words, groupSize)))
 		for groupNumber, wordsList in groups.items():
-			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self.roundSettings['groupSize'] else Group.STATUS_UNDEFINED
+			status = Group.STATUS_EXILE if expelSuperfluousWords and len(wordsList) < self._roundSettings['groupSize'] else Group.STATUS_UNDEFINED
 			for wordInfo in wordsList:
-				Group.addWordToGroup(word_id=wordInfo[0], number=groupNumber, status=status, player_id=wordInfo[2], **self.gameState)
+				Group.addWordToGroup(word_id=wordInfo[0], number=groupNumber, status=status, player_id=wordInfo[2], **self._gameState)
 		return OrderedDict((i, [w[1] for w in words]) for i, words in groups.items())
 
 	# def _saveWordIntoGr
 
 	def _addRandomWord(self):
-		if 'randomWordsLimit' not in self.roundSettings or not self.roundSettings['randomWordsLimit'] or \
-				Word.getListByRoundId(telegram_id=Base_Game._RANDOM_PLAYER['id'], **self.gameState):
+		if 'randomWordsLimit' not in self._roundSettings or not self._roundSettings['randomWordsLimit'] or \
+				Word.getListByRoundId(telegram_id=Base_Game._RANDOM_PLAYER['id'], **self._gameState):
 			return
 		self._refreshGameState()
 		randomWordsCount = 0
 		wordsAdded = 0
-		while wordsAdded < self.roundSettings['randomWordsLimit']:
+		while wordsAdded < self._roundSettings['randomWordsLimit']:
 			if randomWordsCount > 20:
 				break
 			randomWordsCount += 1
@@ -726,11 +780,20 @@ class Base_Game:
 			Word.add(
 				word=word,
 				player_id=Player.getId(self._RANDOM_PLAYER),
-				wordsLimit=self.roundSettings['minWordsPerPlayer'],
-				wordMinLength=self.roundSettings['minWordLength'],
-				**self.gameState
+				wordsLimit=self._roundSettings['minWordsPerPlayer'],
+				wordMinLength=self._roundSettings['minWordLength'],
+				**self._gameState
 			)
 			wordsAdded += 1
+
+	@staticmethod
+	def _generatePassword(password):
+		if password == Base_Game.PASSWORD_NO_PASSWORD_MARK:
+			return None
+		password = str(password).strip()
+		if len(password) < Base_Game.PASSWORD_MIN_LENGTH:
+			raise InvalidPasswordError
+		return md5(password + Config.get('MISC.password_salt'))
 
 	def _start(self, words, weights):
 		raise NotImplementedError("Method must be override")
@@ -761,4 +824,8 @@ class GameAccessDeniedError(Exception):
 
 
 class GameAutoCreatingFailedError(Exception):
+	pass
+
+
+class InvalidPasswordError(Exception):
 	pass

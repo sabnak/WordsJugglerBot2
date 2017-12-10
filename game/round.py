@@ -18,6 +18,10 @@ class Round:
 		return DB.getOne("SELECT * FROM round WHERE id=%(round_id)s" % dict(round_id=round_id))
 
 	@staticmethod
+	def getLast(**params):
+		return DB.getOne("SELECT * FROM round WHERE game_id=%(game_id)s ORDER BY id DESC LIMIT 1", params)
+
+	@staticmethod
 	def getByGame(game_id):
 		roundList = DB.getList("""
 			SELECT *,

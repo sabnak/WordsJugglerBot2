@@ -19,12 +19,12 @@ class Game(Base_Game):
 				maxPlayers=6,
 				randomWordsLimit=2,
 				percentPerPoint=5,
-				groupSize=-1  # -1 is auto size
+				groupSize=-1,  # -1 is auto size
+				fightDegree=3.0,
+				fightMaxWeight=.9,
+				validationRegex=""
 			)
-		},
-		word=dict(
-			validationRegex=""
-		)
+		}
 	)
 
 	def _start(self, words, weights):

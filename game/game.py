@@ -49,11 +49,11 @@ class Game:
 	@staticmethod
 	def getPlayerLastGame(**params):
 		return DB.getOne("""
-			SELECT *
+			SELECT game.*
 			FROM game
 			JOIN game_has_player ON (game_has_player.game_id = game.id)
 			WHERE player_id = %(player_id)s AND series_id = %(series_id)s
-		""", params)
+		""", params, jsonFields=['settings'])
 
 	@staticmethod
 	def getSeriesLastGame(**params):
@@ -62,7 +62,15 @@ class Game:
 			FROM game
 			WHERE series_id = %(series_id)s
 			ORDER BY id DESC
-		""", params)
+		""", params, jsonFields=['settings'])
+
+	@staticmethod
+	def setGamePassword(**params):
+		DB.execute("UPDATE game SET password = %(password)s WHERE id = %(game_id)s", params)
+
+	@staticmethod
+	def setGameStatus(**params):
+		DB.execute("UPDATE game SET status = %(status)s WHERE id = %(game_id)s", params)
 
 	@staticmethod
 	def _init(**params):
@@ -73,6 +81,7 @@ class Game:
 			SET
 				creator_id = %(player_id)s,
 				status = %(status)s,
+				settings = %(settings)s,
 				series_id = %(series_id)s
 		""", params).lastrowid
 		logging.info("New game was started. ID: %d" % game_id)
@@ -82,7 +91,7 @@ class Game:
 		return game_id
 
 	@staticmethod
-	def _get(game_id):
+	def getFullInfo(game_id):
 		return DB.getOne("""
 			SELECT game.*, round_id, round.status roundStatus, round.number roundNumber
 			FROM game_has_round
@@ -91,8 +100,8 @@ class Game:
 			WHERE game.id = %d
 			ORDER BY game_has_round.id DESC
 			LIMIT 1
-		""" % game_id)
+		""" % game_id, jsonFields=['settings'])
 
 	@staticmethod
-	def _update(**params):
+	def update(**params):
 		return DB.execute("UPDATE game SET winner_id = %(winner_id)s, status = %(status)s WHERE id = %(game_id)s", params)

@@ -1,7 +1,7 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 from game.typeA import Game
-from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, SeriesNotDefinedError
+from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, SeriesWasNotFoundError, InvalidPasswordError
 import re
 from libs.coll import Config, parseStringArgs, ArgumentParserError
 from functools import wraps
@@ -26,7 +26,7 @@ def general(func):
 		try:
 			return func(game, bot, update, *args, **kwargs)
 		except GameWasNotFoundError:
-			sendMsg(bot, update, "О-хо-хо! Ты до сих пор не поучаствовал ни в одной игре!\nНачни новую командой /gamestart или просоединись к существующей - /gamejoin")
+			sendMsg(bot, update, "О-хо-хо! Ты до сих пор не поучаствовал ни в одной игре!\nСоздай новую командой /gamecreate или просоединись к существующей - /gamejoin")
 			return
 		except GameWasNotCreateError:
 			sendMsg(bot, update, "Последняя игра серии была завершена.\nНачни новую командой /gamestart или просоединись к существующей - /gamejoin")
@@ -34,7 +34,7 @@ def general(func):
 		except GameWasNotStartError:
 			sendMsg(bot, update, "Игра найдена, но её создатель ещё не решился её начать")
 			return
-		except SeriesNotDefinedError:
+		except SeriesWasNotFoundError:
 			sendMsg(bot, update, "Прежде чем начать играть, надо присоединиться к какой-нибудь серии игр. Для списка доступных серий наберите /serieslist")
 			return
 
@@ -47,14 +47,47 @@ def start(game, bot, update):
 
 
 @general
-def createGame(game, bot, update, args):
+def createGame(game, bot, update):
 	response = game.createGame()
 	return sendMsg(bot, update, response)
 
 
 @general
+def startGame(game, bot, update):
+	response = game.startGame()
+	return sendMsg(bot, update, response)
+
+
+@general
 def joinGame(game, bot, update, args):
-	response = game.joinGame()
+	try:
+		game_id = int(args[0]) if args else None
+		password = str(args[1]) if len(args) > 1 else None
+	except (ValueError, IndexError):
+		sendMsg(bot, update, "ID серии - число, блин.")
+		return
+	response = game.joinGame(game_id, password)
+	return sendMsg(bot, update, response)
+
+
+@general
+def getGameSettings(game, bot, update):
+	response = game.getGameSettings()
+	return sendMsg(bot, update, response)
+
+
+@general
+def setGamePassword(game, bot, update, args):
+	if not args:
+		response = "Передай пароль. Если хочешь убрать пароль, то введи \"%s\"" % game.PASSWORD_NO_PASSWORD_MARK
+	else:
+		if len(args) > 1:
+			response = "Нельзя использовать пробелы!"
+		else:
+			try:
+				response = game.setGamePassword(args[0] if args else None)
+			except InvalidPasswordError:
+				response = "Плохой пароль задал. Минимальная длина пароля - %d символа" % game.PASSWORD_MIN_LENGTH
 	return sendMsg(bot, update, response)
 
 
@@ -306,7 +339,11 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['start', 'help', 'h', 'помощь'], start),
 		CommandHandler(['gameinfo', 'gi', 'играинфо'], getGameInfo, pass_args=True),
 		CommandHandler(['gamelist', 'gl', 'играсписок'], getGameList, pass_args=True),
-		CommandHandler(['gamecreate', 'gc', 'играсоздать'], createGame, pass_args=True),
+		CommandHandler(['gamecreate', 'gc', 'играсоздать'], createGame),
+		CommandHandler(['gamesetpassword', 'gsp', 'игразадатьпароль'], setGamePassword, pass_args=True),
+		CommandHandler(['gamestart', 'gs', 'играначать'], startGame),
+		CommandHandler(['gamejoin', 'gj', 'играприсоединиться'], joinGame, pass_args=True),
+		CommandHandler(['gamesettings', 'gst', 'игранастройки'], getGameSettings),
 		CommandHandler(['seriesjoin', 'sj', 'серияприсоединиться'], joinSeries, pass_args=True),
 		CommandHandler(['serieslist', 'sl', 'серияспиок'], getSeriesList),
 		CommandHandler(['mywordsbygame', 'wg', 'моисловаигра'], showMyWordsPerGame, pass_args=True),

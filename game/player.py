@@ -14,13 +14,13 @@ class Player:
 		player = DB.getOne("""
 			SELECT
 				player.*,
-				game.id game_id,
 				player.series_id,
 				series.name series_name,
 				series_has_player.password series_password,
-				game_has_player.password game_password
+				game_has_player.password game_password,
+				series_has_player.role series_role,
+				game_has_player.role game_role
 			FROM player
-			LEFT JOIN game ON (game.id = player.game_id)
 			LEFT JOIN series ON (series.id = player.series_id)
 			LEFT JOIN game_has_player ON (game_has_player.player_id = player.id AND game_has_player.game_id = player.game_id)
 			LEFT JOIN series_has_player ON (series_has_player.player_id = player.id AND series_has_player.series_id = player.series_id)
