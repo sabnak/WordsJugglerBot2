@@ -30,16 +30,13 @@ class Player:
 
 	@staticmethod
 	def joinGame(**params):
-		passwordUpdateQueue = ""
-		if 'password' in params:
-			passwordUpdateQueue = ", password = %(password)s ON DUPLICATE KEY UPDATE password = %(password)s"
 		DB.execute("""
 			INSERT IGNORE INTO game_has_player
 			SET
 				game_id = %(game_id)s,
 				player_id = %(player_id)s,
 				role = %(role)s
-		""" + passwordUpdateQueue, params)
+		""", params)
 		DB.execute("""
 			UPDATE player
 			SET game_id = %(game_id)s
@@ -48,16 +45,13 @@ class Player:
 
 	@staticmethod
 	def joinSeries(**params):
-		passwordUpdateQueue = ""
-		if 'password' in params:
-			passwordUpdateQueue = ", password = %(password)s ON DUPLICATE KEY UPDATE password = %(password)s"
 		DB.execute("""
 			INSERT IGNORE INTO series_has_player
 			SET
 				series_id = %(series_id)s,
 				player_id = %(player_id)s,
 				role = %(role)s
-		""" + passwordUpdateQueue, params)
+		""", params)
 		DB.execute("""
 			UPDATE player
 			SET	series_id = %(series_id)s
@@ -72,6 +66,16 @@ class Player:
 			SET password = %(password)s
 			WHERE series_id = %(series_id)s AND player_id = %(player_id)s
 		""", params)
+
+	@staticmethod
+	def getSeriesPassword(**params):
+		player = DB.getOne("SELECT * FROM series_has_player WHERE player_id = %(player_id)s AND series_id = %(series_id)s", params)
+		return player['password'] if player else None
+
+	@staticmethod
+	def getGamePassword(**params):
+		player = DB.getOne("SELECT * FROM game_has_player WHERE player_id = %(player_id)s AND game_id = %(game_id)s", params)
+		return player['password'] if player else None
 
 	@staticmethod
 	def setGamePassword(**params):
@@ -111,7 +115,7 @@ class Player:
 			SELECT player.*
 			FROM player
 			JOIN word ON (player_id = player.id)
-			WHERE round_id = %(round_id)s AND game_id = %(game_id)s AND word = %(word)s
+			WHERE word.round_id = %(round_id)s AND word.game_id = %(game_id)s AND word = %(word)s
 		""", params)
 
 	@staticmethod

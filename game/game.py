@@ -19,12 +19,12 @@ class Game:
 
 	def create(self, **params):
 		self.__id = Game._init(**params)
-		self.__game = self._get(self.__id)
+		self.__game = self.get(game_id=self.__id)
 		return self.__game
 
 	def join(self, game_id):
 		self.__id = game_id
-		self.__game = self._get(self.__id)
+		self.__game = self.get(game_id=self.__id)
 		return self.__game
 
 	@staticmethod
@@ -53,6 +53,17 @@ class Game:
 			FROM game
 			JOIN game_has_player ON (game_has_player.game_id = game.id)
 			WHERE player_id = %(player_id)s AND series_id = %(series_id)s
+			ORDER BY game.id DESC
+			LIMIT 1
+		""", params, jsonFields=['settings'])
+
+	@staticmethod
+	def getPlayerFirstAvailableGame(**params):
+		params['status'] = Game.STATUS_IN_PROGRESS
+		return DB.getOne("""
+			SELECT game.*
+			FROM game
+			WHERE series_id = %(series_id)s AND status = %(status)s
 		""", params, jsonFields=['settings'])
 
 	@staticmethod
@@ -86,8 +97,13 @@ class Game:
 		""", params).lastrowid
 		logging.info("New game was started. ID: %d" % game_id)
 		Round.getId(game_id)
-		Player.joinSeries(role=Series.PLAYER_ROLE_MEMBER, **params)
-		Player.joinGame(game_id=game_id, role=Game.PLAYER_ROLE_ADMIN, **params)
+
+		params['role'] = Series.PLAYER_ROLE_MEMBER if 'seriesRole' not in params else params['seriesRole']
+		Player.joinSeries(**params)
+
+		params['role'] = Game.PLAYER_ROLE_ADMIN if 'gameRole' not in params else params['gameRole']
+		Player.joinGame(game_id=game_id, **params)
+
 		return game_id
 
 	@staticmethod

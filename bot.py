@@ -1,7 +1,8 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 from game.typeA import Game
-from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, SeriesWasNotFoundError, InvalidPasswordError
+from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, GameAccessDeniedError, \
+	SeriesWasNotFoundError, SeriesAccessDeniedError, InvalidPasswordError
 import re
 from libs.coll import Config, parseStringArgs, ArgumentParserError
 from functools import wraps
@@ -12,7 +13,7 @@ logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 updater = Updater(token=Config.get('TELEGRAM.token'))
 dispatcher = updater.dispatcher
 
-_RESTRICTION_ADMINS_ONLY = True
+_RESTRICTION_ADMINS_ONLY = False
 
 
 def general(func):
@@ -37,6 +38,12 @@ def general(func):
 		except SeriesWasNotFoundError:
 			sendMsg(bot, update, "Прежде чем начать играть, надо присоединиться к какой-нибудь серии игр. Для списка доступных серий наберите /serieslist")
 			return
+		except SeriesAccessDeniedError:
+			sendMsg(bot, update, "Тебе не рады в серии игр. Попробуй ввести правильный пароль")
+			return
+		except GameAccessDeniedError:
+			sendMsg(bot, update, "Тебе не рады этой игре. Попробуй ввести правильный пароль")
+			return
 
 	return wrapped
 
@@ -44,6 +51,11 @@ def general(func):
 @general
 def start(game, bot, update):
 	sendMsg(bot, update, commandsList)
+
+
+@general
+def getPlayerStatus(game, bot, update):
+	sendMsg(bot, update, game.getPlayerStatus())
 
 
 @general
@@ -337,6 +349,7 @@ def sendMsg(bot, update, msg):
 [
 	dispatcher.add_handler(handler) for handler in [
 		CommandHandler(['start', 'help', 'h', 'помощь'], start),
+		CommandHandler(['status', 's', 'с', 'статус'], getPlayerStatus),
 		CommandHandler(['gameinfo', 'gi', 'играинфо'], getGameInfo, pass_args=True),
 		CommandHandler(['gamelist', 'gl', 'играсписок'], getGameList, pass_args=True),
 		CommandHandler(['gamecreate', 'gc', 'играсоздать'], createGame),
@@ -349,10 +362,10 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['mywordsbygame', 'wg', 'моисловаигра'], showMyWordsPerGame, pass_args=True),
 		CommandHandler(['mywordsbyround', 'wr', 'моисловараунд'], showMyWordsPerRound, pass_args=True),
 		CommandHandler(['update', 'u', 'обновить', 'о'], updateMyWord, pass_args=True),
-		CommandHandler(['random', 'r', 'случайное'], getRandomWord, pass_args=False),
-		CommandHandler(['fight', 'f', 'битва', 'б'], fight, pass_args=False),
-		CommandHandler(['candidates', 'c', 'к', 'кандидаты'], getCandidates, pass_args=False),
-		CommandHandler(['ready', 'готов'], setState, pass_args=False),
+		CommandHandler(['random', 'r', 'случайное'], getRandomWord),
+		CommandHandler(['fight', 'f', 'битва', 'б'], fight),
+		CommandHandler(['candidates', 'c', 'к', 'кандидаты'], getCandidates),
+		CommandHandler(['ready', 'готов'], setState),
 		CommandHandler(['vote', 'v', 'голос', 'г'], vote, pass_args=True),
 		CommandHandler(['voteinfo', 'vi', 'голосинфо', 'ги'], getMyVotes),
 		CommandHandler(['gameresult', 'gr', 'результатыигры', 'ри'], getGameResults, pass_args=True),

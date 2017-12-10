@@ -18,15 +18,22 @@ class Word:
 		wordsForToday = DB.getList("""
 			SELECT *
 			FROM word
-			WHERE player_id = %(player_id)s AND game_id = %(game_id)s AND round_id = %(round_id)s
+			WHERE player_id = %(player_id)s AND game_id = %(game_id)s AND round_id = %(round_id)s AND series_id = %(series_id)s
 		""", params)
 		if len(wordsForToday) >= wordsLimit:
 			return False, Word.ERROR_CODES['NOT_IN_TIME_WORD'] % wordsLimit
-		status, response = Word.isWordValid(params['word'], wordMinLength)
+		status, response = Word.isWordValid(params['word'], params['series_id'], wordMinLength)
 		if not status:
 			return False, response
-		DB.execute("INSERT INTO word SET word = %(word)s, player_id = %(player_id)s, game_id = %(game_id)s, round_id = %(round_id)s", params)
-		wordsForToday = DB.getList("SELECT * FROM word WHERE player_id = %(player_id)s AND game_id = %(game_id)s AND round_id = %(round_id)s", params)
+		DB.execute("""
+			INSERT INTO word
+			SET word = %(word)s, player_id = %(player_id)s, game_id = %(game_id)s, round_id = %(round_id)s, series_id = %(series_id)s
+		""", params)
+		wordsForToday = DB.getList("""
+			SELECT *
+			FROM word
+			WHERE player_id = %(player_id)s AND game_id = %(game_id)s AND round_id = %(round_id)s AND series_id = %(series_id)s
+		""", params)
 		additionalMsg = ""
 		if len(wordsForToday) == wordsLimit:
 			additionalMsg = " У тебя больше не осталось словцов в этом раунде, растяпа!"
@@ -84,7 +91,7 @@ class Word:
 		""", params)
 		if not oldWord:
 			return "У тебя нет такого словца в последнем раунде или он уже завершён, дурында!"
-		status, response = Word.isWordValid(word=params['newWord'], wordMinLength=wordMinLength)
+		status, response = Word.isWordValid(word=params['newWord'],series_id=params['series_id'], wordMinLength=wordMinLength)
 		if not status:
 			return response
 		affectedRows = DB.execute("""
@@ -94,11 +101,11 @@ class Word:
 		return "Хм... Я не смог обновить словцо. Интересно почему?" if not affectedRows else "Словцо успешно обновлено. Надеюсь, оно было получше прежнего"
 
 	@staticmethod
-	def isWordValid(word, wordMinLength):
+	def isWordValid(word, series_id, wordMinLength, checkExistence=True):
 		errorMsg = None
 		if not word:
 			errorMsg = Word.ERROR_CODES['EMPTY_WORD']
-		elif Word._isWordExist(word):
+		elif checkExistence and Word._isWordExist(word=word, series_id=series_id):
 			errorMsg = Word.ERROR_CODES['EXISTED_WORD_NEW']
 		elif not re.match(r"^[А-яё]+$", word):
 			errorMsg = Word.ERROR_CODES['INVALID_WORD']
@@ -110,9 +117,19 @@ class Word:
 
 	@staticmethod
 	def isWordBelongToPlayer(**params):
-		return True if DB.getOne("SELECT * FROM word WHERE round_id = %(round_id)s AND word = %(word)s AND player_id = %(player_id)s", params) else False
+		return True if DB.getOne("""
+			SELECT *
+			FROM word
+			WHERE round_id = %(round_id)s AND word = %(word)s AND player_id = %(player_id)s AND series_id = %(series_id)s
+		""", params) else False
 
 	@staticmethod
-	def _isWordExist(word):
-		return True if DB.getOne("SELECT * FROM word WHERE word = %(word)s ORDER BY createDate DESC LIMIT 1", dict(word=word)) else False
+	def _isWordExist(**params):
+		return True if DB.getOne("""
+			SELECT *
+			FROM word
+			WHERE word = %(word)s AND series_id = %(series_id)s
+			ORDER BY createDate DESC
+			LIMIT 1
+		""", params) else False
 
