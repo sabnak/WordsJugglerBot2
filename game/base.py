@@ -60,10 +60,14 @@ class Base_Game:
 		"""
 		logging.info("Refreshing game state for player ID %d" % self._playerState['id'])
 		self._refreshSeriesState()
-		self._gameState = Game.getPlayerLastGame(player_id=self._playerState['id'], series_id=self._seriesState['id'])
+		# TODO: Добавить проверку, что игрок может просоединиться к игре, если игра запоролена
+		availableGamesList = Game.getPlayerAvailableGames(series_id=self._seriesState['id'])
+		logging.info("There're %d games available for player ID %d" % (len(availableGamesList), self._playerState['id']))
 
-		if not self._gameState:
+		if not availableGamesList:
 			raise GameWasNotFoundError
+
+		self._gameState = availableGamesList[0]
 
 		self._gameState['game_id'] = self._gameState['id']
 

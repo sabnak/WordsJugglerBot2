@@ -58,9 +58,9 @@ class Game:
 		""", params, jsonFields=['settings'])
 
 	@staticmethod
-	def getPlayerFirstAvailableGame(**params):
+	def getPlayerAvailableGames(**params):
 		params['status'] = Game.STATUS_IN_PROGRESS
-		return DB.getOne("""
+		return DB.getList("""
 			SELECT game.*
 			FROM game
 			WHERE series_id = %(series_id)s AND status = %(status)s
