@@ -19,7 +19,7 @@ _RESTRICTION_ADMINS_ONLY = False
 def general(func):
 	@wraps(func)
 	def wrapped(bot, update, *args, **kwargs):
-		game = Game(update.message.chat.id)
+		game = Game(update)
 		logging.info(update)
 		if _RESTRICTION_ADMINS_ONLY and str(update.effective_user.id) not in Config.get('TELEGRAM.admins'):
 			sendMsg(bot, update, "Со мной что-то делают. Отвали!")
@@ -182,7 +182,13 @@ def getRandomWord(game, bot, update):
 @general
 def generateBattle(game, bot, update, args):
 	if not args:
-		sendMsg(bot, update, "Живо передал параметры битвы в правильном формате!")
+		sendMsg(bot, update, """
+			Живо передал параметры битвы в правильном формате! Примерно так: "/gb ЧИСЛО_СЛОВ ПАРАМЕТРЫ"
+			Поддерживаемые ПАРАМЕТРЫ:			
+			-e E - степень
+			-m M - максимальный вес
+			-p P - веса слов через пробел
+			""")
 		return
 	try:
 		wordsLimit = int(args[0])

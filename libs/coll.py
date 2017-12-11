@@ -157,7 +157,11 @@ def bestOfMultipleSmart(words, weights, m=.90, e=3):
 			if word not in weightSumPerWord:
 				weightSumPerWord[word] = 0
 			weightSumPerWord[word] += int(weight)
+
 	weightSum = sum([i for i in weightSumPerWord.values()])
+	if not weightSum:
+		weightSum = 1
+
 	coefficient = sum([i ** e for i in weightSumPerWord.values()]) * weightToSpent
 
 	if not coefficient:

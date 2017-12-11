@@ -15,8 +15,8 @@ class Game(Base_Game):
 				maxWeightPerWord=4,
 				maxWeightPerRound=4,
 				minWeightPerRound=4,
-				minPlayers=2,
-				maxPlayers=6,
+				minPlayers=3,
+				maxPlayers=20,
 				randomWordsLimit=2,
 				percentPerPoint=5,
 				groupSize=-1,  # -1 is auto size

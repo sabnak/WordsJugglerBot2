@@ -43,15 +43,22 @@ class Base_Game:
 	_seriesState = None
 	_playerState = None
 
-	def __init__(self, telegram_id):
-		self._refreshPlayerState(telegram_id)
+	def __init__(self, update):
+		self.update = update
+		self._refreshPlayerState()
 		self.game = Game()
 
-	def _refreshPlayerState(self, telegram_id=None):
+	def _refreshPlayerState(self, newPlayer=False):
+		telegram_id = self.update.message.chat.id
 		logging.info("Refreshing player telegram_id %s" % str(telegram_id))
 		if self._playerState and not telegram_id:
 			telegram_id = self._playerState['telegram_id']
 		self._playerState = Player.get(telegram_id=telegram_id)
+		if not self._playerState:
+			if newPlayer:
+				raise PlayerAddingError
+			Player.add(self.update)
+			self._refreshPlayerState(True)
 
 	def _refreshGameState(self, password=None, notStartedGamesIsAllowed=False, autoRefresh=False):
 		"""
@@ -370,7 +377,7 @@ class Base_Game:
 
 		return Word.add(
 			word=update.message.text,
-			player_id=Player.getId(update.message.chat),
+			player_id=self._playerState['id'],
 			wordsLimit=self._roundSettings['minWordsPerPlayer'],
 			wordMinLength=self._roundSettings['minWordLength'],
 			**self._gameState['query']
@@ -755,6 +762,7 @@ class Base_Game:
 			self._roundSettings['maxWeightPerWord']
 		)
 
+	# TODO: Проверять существование слова
 	def vote(self, update, weightPlain):
 		self._refreshGameState()
 		player_id = Player.getId(update.message.chat)
@@ -772,6 +780,8 @@ class Base_Game:
 		for word, weight in weightParsed:
 			weight = int(weight)
 			word_id = Word.getIdByName(word=word, **self._gameState['query'])
+			if not word_id:
+				return "Охохо! Нет такого словца в этой игре. Совсем. Проголосуй за правильное"
 			voteStatus, response = self._isPlayerCanVote(player_id=player_id, weight=weight, word_id=word_id, word=word)
 			if response:
 				responses.append(response)
@@ -934,4 +944,8 @@ class InvalidPasswordError(Exception):
 
 
 class CircleGameRefreshingError(Exception):
+	pass
+
+
+class PlayerAddingError(Exception):
 	pass
