@@ -58,21 +58,25 @@ class Game:
 		""", params, jsonFields=['settings'])
 
 	@staticmethod
+	def getLastGameInSeries(**params):
+		condition = ""
+		if 'status' in params:
+			condition = " AND status IN (%(status)s)"
+		return DB.getOne("""
+			SELECT game.*
+			FROM game
+			WHERE series_id = %(series_id)s """ + condition + """
+			ORDER BY game.id DESC
+			LIMIT 1
+		""", params, jsonFields=['settings'])
+
+	@staticmethod
 	def getPlayerAvailableGames(**params):
 		params['status'] = Game.STATUS_IN_PROGRESS
 		return DB.getList("""
 			SELECT game.*
 			FROM game
 			WHERE series_id = %(series_id)s AND status = %(status)s
-		""", params, jsonFields=['settings'])
-
-	@staticmethod
-	def getSeriesLastGame(**params):
-		return DB.getOne("""
-			SELECT *
-			FROM game
-			WHERE series_id = %(series_id)s
-			ORDER BY id DESC
 		""", params, jsonFields=['settings'])
 
 	@staticmethod
@@ -107,16 +111,16 @@ class Game:
 		return game_id
 
 	@staticmethod
-	def getFullInfo(game_id):
+	def getFullInfo(**params):
 		return DB.getOne("""
 			SELECT game.*, round_id, round.status roundStatus, round.number roundNumber
 			FROM game_has_round
 			JOIN game ON (game.id = game_has_round.game_id)
 			JOIN round ON (round.id = game_has_round.round_id)
-			WHERE game.id = %d
+			WHERE game.id = %(game_id)s
 			ORDER BY game_has_round.id DESC
 			LIMIT 1
-		""" % game_id, jsonFields=['settings'])
+		""", params, jsonFields=['settings'])
 
 	@staticmethod
 	def update(**params):

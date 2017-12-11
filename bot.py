@@ -2,7 +2,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 from game.typeA import Game
 from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, GameAccessDeniedError, \
-	SeriesWasNotFoundError, SeriesAccessDeniedError, InvalidPasswordError
+	SeriesWasNotFoundError, SeriesAccessDeniedError, InvalidPasswordError, GameIsNotReadyError
 import re
 from libs.coll import Config, parseStringArgs, ArgumentParserError
 from functools import wraps
@@ -43,6 +43,9 @@ def general(func):
 			return
 		except GameAccessDeniedError:
 			sendMsg(bot, update, "Тебе не рады этой игре. Попробуй ввести правильный пароль")
+			return
+		except GameIsNotReadyError:
+			sendMsg(bot, update, "Создатель игры ещё не настроил её правила. Пни его!")
 			return
 
 	return wrapped

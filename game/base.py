@@ -65,7 +65,10 @@ class Base_Game:
 		logging.info("There're %d games available for player ID %d" % (len(availableGamesList), self._playerState['id']))
 
 		if not availableGamesList:
-			raise GameWasNotFoundError
+			if autoRefresh:
+				raise CircleGameRefreshingError
+			self.joinGame()
+			return
 
 		self._gameState = availableGamesList[0]
 
@@ -123,11 +126,15 @@ class Base_Game:
 	def _createGame(self, status=Game.STATUS_PREPARATION, role=Game.PLAYER_ROLE_ADMIN, activeGames=1):
 		self._refreshSeriesState()
 
+		logging.info("Trying to create new game")
+
 		createdGames = self.game.getList(
-			series_is=self._seriesState['id'],
+			series_id=self._seriesState['id'],
 			status=[Base_Game.STATUS_PREPARATION, Base_Game.STATUS_IN_PROGRESS]
 		)
+		print(self._seriesState)
 		if createdGames and len(createdGames) >= activeGames:
+			logging.info("Too many player active games")
 			return """
 				Слишком много активных игр в серии.
 				Максимум активных игр: %d
@@ -140,6 +147,7 @@ class Base_Game:
 		)
 
 		if createdGamesByPlayer and len(createdGamesByPlayer) >= self._seriesState['settings']['maxOpenedGamesPerPlayer']:
+			logging.info("Too many active games")
 			return """
 				Тобой создано слишком много активных игр в серии.
 				Заверши предыдущие, чтобы создавать новые.
@@ -161,6 +169,8 @@ class Base_Game:
 			Для изменения других настроек используй\n "/gameset НОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ"
 			Для запуска игры используй "/gamestart"
 		""" % game['id']
+
+		logging.info("Game ID %d created successfully" % game['id'])
 
 		return response
 
@@ -217,9 +227,11 @@ class Base_Game:
 	def _createGameAutomatically(self):
 		if not self._seriesState['settings']['autoCreateGames']:
 			return False
-
+		logging.info("Creating game automatically")
 		self._createGame(status=Game.STATUS_IN_PROGRESS, role=Game.PLAYER_ROLE_MEMBER, activeGames=1)
 		newGame = Game.getPlayerLastGame(player_id=self._playerState['id'], series_id=self._seriesState['id'])
+		if not newGame:
+			return False
 		if newGame['status'] != Game.STATUS_IN_PROGRESS:
 			raise GameAutoCreatingFailedError
 		else:
@@ -230,17 +242,17 @@ class Base_Game:
 			password = self._generatePassword(password)
 		self._refreshSeriesState()
 		if not game_id:
-			game = Game.getSeriesLastGame(series_id=self._seriesState['id'])
+			game = Game.getLastGameInSeries(series_id=self._seriesState['id'])
 			if not game and not self._createGameAutomatically():
-				return "Похоже, в этой серии игр ещё не начато ни одной игры. Будь первым!"
-			game = Game.getSeriesLastGame(series_id=self._seriesState['id'])
+				raise GameWasNotCreateError
+			game = Game.getLastGameInSeries(series_id=self._seriesState['id'])
 		else:
 			game = Game.get(game_id=game_id)
 			if not game:
-				return "В этой серии нет игры с ID %d" % game_id
+				raise GameWasNotCreateError
 
 		if game['status'] == Game.STATUS_PREPARATION:
-			return "Создатель игры ещё не настроил её правила. Пни его!"
+			raise GameIsNotReadyError
 
 		if not self._isPlayerHasAccessToGame(game['id'], password):
 			raise GameAccessDeniedError
@@ -254,6 +266,13 @@ class Base_Game:
 			role=Game.PLAYER_ROLE_MEMBER,
 			game_id=game['id']
 		)
+
+		if password:
+			Player.setGamePassword(
+				player_id=self._playerState['id'],
+				game_id=game['id'],
+				password=password
+			)
 
 		self._refreshGameState(password=password, autoRefresh=True)
 
@@ -274,6 +293,13 @@ class Base_Game:
 			role=Series.PLAYER_ROLE_MEMBER,
 			series_id=series_id
 		)
+
+		if password:
+			Player.setSeriesPassword(
+				player_id=self._playerState['id'],
+				series_id=series_id,
+				password=password
+			)
 
 		self._refreshSeriesState(password=password)
 
@@ -330,7 +356,6 @@ class Base_Game:
 			"Текущая игра, ID: %d" % self._gameState['game_id']
 		]
 		return "\n".join(responseList)
-
 
 	def addWord(self, update):
 		"""
@@ -588,18 +613,17 @@ class Base_Game:
 			responseList.append("******")
 		return "\n".join(responseList)
 
-	@staticmethod
-	def getLastGameLog(status=STATUS_ENDED):
-		return Base_Game.getGameLog(game_id=None, status=status)
+	def getLastGameLog(self, status=STATUS_ENDED):
+		lastGame = Game.getLastGameInSeries(series_id=self._playerState['series_id'], status=Game.STATUS_ENDED)
+		if not lastGame:
+			return "Не получается найти лог последней игры.\nВозможно, игра ещё не была завершена?"
+		return Base_Game.getGameLog(game_id=lastGame['id'])
 
 	@staticmethod
-	def getGameLog(game_id, status=STATUS_ENDED):
-		log = Base_Game._getGameLog(game_id=game_id, status=status)
+	def getGameLog(game_id):
+		log = Base_Game._getGameLog(game_id=game_id)
 		if not log:
-			return (
-				("Не получается найти лог игры с ID <b>%d</b>." % game_id) if game_id
-				else "Не получается найти лог последней игры.") \
-				+ " Возможно, игра ещё не была завершена?"
+			return "Не получается найти лог игры с ID <b>%d</b>." % game_id
 		return Base_Game._getPrettyGameResults(log)
 
 	@staticmethod
@@ -894,6 +918,10 @@ class SeriesAccessDeniedError(Exception):
 
 
 class GameAccessDeniedError(Exception):
+	pass
+
+
+class GameIsNotReadyError(Exception):
 	pass
 
 

@@ -14,7 +14,6 @@ class Player:
 		player = DB.getOne("""
 			SELECT
 				player.*,
-				player.series_id,
 				series.name series_name,
 				series_has_player.password series_password,
 				game_has_player.password game_password,
@@ -78,12 +77,25 @@ class Player:
 		return player['password'] if player else None
 
 	@staticmethod
-	def setGamePassword(**params):
-		params['password'] = md5(params['password'] + Config.get('MISC.password_salt'))
+	def setSeriesPassword(**params):
 		DB.execute("""
-			UPDATE game_has_player
-			SET password = %(password)s
-			WHERE game_id = %(game_id)s AND player_id = %(player_id)s
+			INSERT IGNORE INTO series_has_player
+			SET
+				series_id = %(series_id)s,
+				player_id = %(player_id)s,
+				password = %(password)s
+			ON DUPLICATE KEY UPDATE password = %(password)s 
+		""", params)
+
+	@staticmethod
+	def setGamePassword(**params):
+		DB.execute("""
+			INSERT IGNORE INTO game_has_player
+			SET
+				game_id = %(game_id)s,
+				player_id = %(player_id)s,
+				password = %(password)s
+			ON DUPLICATE KEY UPDATE password = %(password)s 
 		""", params)
 
 	@staticmethod
