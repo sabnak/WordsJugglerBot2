@@ -137,7 +137,7 @@ def iAmSoStupid(game, bot, update):
 @general
 def showMyWordsPerGame(game, bot, update, args):
 	game_id = int(args[0]) if args else None
-	wordsList = game.getPlayerWordsByGame(update, game_id)
+	wordsList = game.getPlayerWordsByGame()
 	if not wordsList:
 		response = "Какой стыд. Ты не смог предложить ни одного словца за всю игру!"
 		sendMsg(bot, update, response)
@@ -149,7 +149,7 @@ def showMyWordsPerGame(game, bot, update, args):
 @general
 def showMyWordsPerRound(game, bot, update, args):
 	round_id = int(args[0]) if args else None
-	wordsList = game.getPlayerWordsByRound(update, round_id)
+	wordsList = game.getPlayerWordsByRound(round_id)
 	if not wordsList:
 		response = "Какой стыд. Ты не смог предложить ни одного словца за целый раунд!"
 		sendMsg(bot, update, response)

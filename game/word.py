@@ -47,18 +47,22 @@ class Word:
 		return word['id'] if word else None
 
 	@staticmethod
-	def getListByGameId(game_id, player_id=None, fullAccess=False):
-		condition = "word.player_id = %(player_id)s" if player_id else "round.status = 'ended'" if not fullAccess else ""
+	def getListByGameId(fullAccess=False, **params):
+		condition = "word.player_id = %(player_id)s" if 'player_id' in params else "round.status = 'ended'" if not fullAccess else ""
 		return DB.getList("""
 		SELECT word.*, round.number
 		FROM word
 		JOIN round ON (round.id = word.round_id)
 		WHERE word.game_id = %(game_id)s AND
-		""" + condition, dict(game_id=game_id, player_id=player_id))
+		""" + condition, params)
 
 	@staticmethod
 	def getListByRoundId(fullAccess=False, **params):
-		condition = " AND word.player_id = %(player_id)s" if 'player_id' in params else " AND player.telegram_id = %(telegram_id)s" if 'telegram_id' in params else " AND round.status = 'ended'" if not fullAccess else ""
+		condition = " AND word.player_id = %(player_id)s" if 'player_id' in params else \
+			" AND player.telegram_id = %(telegram_id)s" if 'telegram_id' in params else \
+			" AND round.status = 'ended'" if not fullAccess else \
+			""
+		print(params)
 		return DB.getList("""
 		SELECT word.*, player.name, player.telegram_id, round.number
 		FROM word

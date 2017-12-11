@@ -640,25 +640,23 @@ class Base_Game:
 			return None
 		return Log.get(game_id=game['id'])
 
-	def getPlayerWordsByRound(self, update, round_id=None, fullAccess=False):
+	def getPlayerWordsByRound(self, round_id=None, fullAccess=False):
 		"""
-		:param update: dict with update info
 		:param round_id: int
 		:param fullAccess: bool if True access to to all words otherwise your own
 		:return: list of founded words
 		"""
 		self._refreshGameState()
 
-		player_id = Player.getId(update.message.chat)
-		return Word.getListByRoundId(
+		o = dict(
+			game_id=self._gameState['query']['game_id'],
+			player_id=self._playerState['id'],
 			fullAccess=fullAccess,
-			round_id=round_id,
-			player_id=player_id
-		) if round_id else Word.getListByRoundId(
-				fullAccess=fullAccess,
-				player_id=player_id,
-				**self._gameState['query']
-			)
+			round_id=round_id if round_id else self._gameState['query']['round_id']
+		)
+		print(o)
+
+		return Word.getListByRoundId(**o)
 
 	def getPlayerWordsByGame(self, fullAccess=False):
 		self._refreshGameState()
