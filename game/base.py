@@ -60,7 +60,13 @@ class Base_Game:
 			Player.add(self.update)
 			self._refreshPlayerState(True)
 
-	def _refreshGameState(self, password=None, notStartedGamesIsAllowed=False, autoRefresh=False):
+	def _refreshGameState(
+			self,
+			password=None,
+			notStartedGamesIsAllowed=False,
+			autoRefresh=False,
+			autoJoin=True
+	):
 		"""
 		Updates game state (game_id, round_id etc.)
 		Must be calls in every public method
@@ -71,7 +77,7 @@ class Base_Game:
 		availableGamesList = Game.getPlayerAvailableGames(series_id=self._seriesState['id'])
 		logging.info("There're %d games available for player ID %d" % (len(availableGamesList), self._playerState['id']))
 
-		if not availableGamesList:
+		if not availableGamesList and autoJoin:
 			if autoRefresh:
 				raise CircleGameRefreshingError
 			self.joinGame()
@@ -93,7 +99,9 @@ class Base_Game:
 		if self._gameState['status'] == Game.STATUS_ENDED:
 			if autoRefresh:
 				raise CircleGameRefreshingError
-			self.joinGame()
+			if autoJoin:
+				self.joinGame()
+			# TODO: Добавить исключиение
 			return
 
 		if self._gameState['status'] == Game.STATUS_PREPARATION and not notStartedGamesIsAllowed:
@@ -128,7 +136,8 @@ class Base_Game:
 			raise SeriesAccessDeniedError
 
 	def createGame(self):
-		self._createGame(activeGames=self._seriesState['settings']['maxOpenedGamesOverall'])
+		self._refreshSeriesState()
+		return self._createGame(activeGames=self._seriesState['settings']['maxOpenedGamesOverall'])
 
 	def _createGame(self, status=Game.STATUS_PREPARATION, role=Game.PLAYER_ROLE_ADMIN, activeGames=1):
 		self._refreshSeriesState()
@@ -139,7 +148,7 @@ class Base_Game:
 			series_id=self._seriesState['id'],
 			status=[Base_Game.STATUS_PREPARATION, Base_Game.STATUS_IN_PROGRESS]
 		)
-		print(self._seriesState)
+
 		if createdGames and len(createdGames) >= activeGames:
 			logging.info("Too many player active games")
 			return """
@@ -182,7 +191,8 @@ class Base_Game:
 		return response
 
 	def startGame(self):
-		self._refreshGameState(notStartedGamesIsAllowed=True)
+		# TODO: Дробавить проверку на владельца игры
+		self._refreshGameState(notStartedGamesIsAllowed=True, autoJoin=False)
 		if self._gameState['status'] == Game.STATUS_IN_PROGRESS:
 			return "Зачем?.. Игра уже начата. Чего ж тебе ещё надо-то?"
 		if self._gameState['status'] == Game.STATUS_ENDED:
@@ -876,7 +886,7 @@ class Base_Game:
 		self._refreshGameState()
 		randomWordsCount = 0
 		wordsAdded = 0
-		while wordsAdded < self._roundSettings['randomWordsLimit']:
+		while wordsAdded <= self._roundSettings['randomWordsLimit']:
 			if randomWordsCount > 20:
 				break
 			randomWordsCount += 1
