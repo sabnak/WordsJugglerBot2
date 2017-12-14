@@ -81,7 +81,7 @@ def joinGame(game, bot, update, args):
 	except (ValueError, IndexError):
 		sendMsg(bot, update, "ID серии - число, блин.")
 		return
-	response = game.joinGame(game_id, password)
+	response = game.joinGame(game_id, password)[1]
 	return sendMsg(bot, update, response)
 
 

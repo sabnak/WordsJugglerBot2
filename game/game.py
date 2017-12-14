@@ -29,7 +29,7 @@ class Game:
 
 	@staticmethod
 	def get(**params):
-		return DB.getOne("SELECT * FROM game WHERE id = %(game_id)s", params)
+		return DB.getOne("SELECT * FROM game WHERE id = %(game_id)s", params, jsonFields=['settings'])
 
 	@staticmethod
 	def getList(**params):
@@ -50,11 +50,9 @@ class Game:
 	def getPlayerLastGame(**params):
 		return DB.getOne("""
 			SELECT game.*
-			FROM game
-			JOIN game_has_player ON (game_has_player.game_id = game.id)
-			WHERE player_id = %(player_id)s AND series_id = %(series_id)s
-			ORDER BY game.id DESC
-			LIMIT 1
+			FROM player
+			JOIN game ON (game.id = player.game_id)
+			WHERE player_id = %(player_id)s AND player.series_id = %(series_id)s
 		""", params, jsonFields=['settings'])
 
 	@staticmethod
