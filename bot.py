@@ -47,6 +47,9 @@ def general(func):
 		except GameIsNotReadyError:
 			sendMsg(bot, update, "Создатель игры ещё не настроил её правила. Пни его!")
 			return
+		except:
+			sendMsg(bot, update, "Ааааа! Как больно, БОЛЬНО! Агония! Я страдаю. Зачем ты так делаешь?! Не детай так, прошу!")
+			raise
 
 	return wrapped
 
