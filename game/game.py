@@ -121,5 +121,9 @@ class Game:
 		""", params, jsonFields=['settings'])
 
 	@staticmethod
+	def updateSettings(**params):
+		return DB.execute("UPDATE game SET settings = %(settings)s WHERE id = %(game_id)s", params)
+
+	@staticmethod
 	def update(**params):
 		return DB.execute("UPDATE game SET winner_id = %(winner_id)s, status = %(status)s WHERE id = %(game_id)s", params)

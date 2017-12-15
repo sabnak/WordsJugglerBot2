@@ -156,7 +156,7 @@ class Base_Game:
 		game = self.game.create(
 			player_id=self._playerState['id'],
 			series_id=self._seriesState['id'],
-			settings=json.dumps(self._SETTINGS),
+			settings=json.dumps(self._seriesState['settings']['game'] if 'game' in self._seriesState['settings'] else self._SETTINGS),
 			status=status,
 			gameRole=role
 		)
@@ -185,8 +185,29 @@ class Base_Game:
 			return "Ииииигра началась! Теперь людишки могут к ней присоединяться"
 		return "Не могу начать игру. Может у тебя недостаточно прав? Игру могут начинать только админы"
 
+	def setGameSettings(self, roundNumber, name, value):
+		self._refreshGameState(checkGameStatus=False)
+		if self._gameState['creator_id'] != self._playerState['id']:
+			return "Э! Куда лезешь! Только создатель игры может изменить её настройки."
+		if roundNumber not in self._gameSettings:
+			return "Кажется, в игре нет настроек для раунда <b>№%d</b>. Ты точно всё делаешь правильно, дорогуша?" % roundNumber
+		if name not in self._gameSettings[roundNumber]:
+			return "Ой-вэй, куда ты тычешь? В раунде <b>№%d</b> нет настройки для <b>%s</b>." % (roundNumber, name)
+		currentValue = self._gameSettings[roundNumber][name]
+		try:
+			self._gameSettings[roundNumber][name] = type(currentValue)(value)
+		except TypeError:
+			return """
+				Плохое значение зачем передал для <b>%s</b>, а?
+				<b>%s</b> совсем не подходит.
+				Попробуй передать что-то похожее на тип <b>%s</b>
+			""" % (name, value, type(currentValue).__name__)
+		self._gameState['settings'] = json.dumps(dict(round=self._gameSettings))
+		self.game.updateSettings(**self._gameState)
+		return "Я очень успешно установил настройку <b>%s</b> = <b>%s</b> для раунда <b>№%d</b>" % (name, str(value), roundNumber)
+
 	def getGameSettings(self):
-		self._refreshGameState()
+		self._refreshGameState(checkGameStatus=False)
 		return "\n".join([
 			"Серия ID %d. Игра ID %d" % (self._seriesState['id'], self._gameState['game_id']),
 			"Дата создания: %s" % self._gameState['createDate'].strftime('%Y-%m-%d %H:%M:%S'),
@@ -872,7 +893,7 @@ class Base_Game:
 			Word.add(
 				word=word,
 				player_id=Player.getId(self._RANDOM_PLAYER),
-				wordsLimit=self._roundSettings['minWordsPerPlayer'],
+				wordsLimit=self._roundSettings['randomWordsLimit'],
 				wordMinLength=self._roundSettings['minWordLength'],
 				**self._gameState['query']
 			)

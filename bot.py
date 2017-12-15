@@ -30,7 +30,7 @@ def general(func):
 			sendMsg(bot, update, "О-хо-хо! Ты до сих пор не поучаствовал ни в одной игре!\nСоздай новую командой /gamecreate или просоединись к существующей - /gamejoin")
 			return
 		except GameWasNotCreateError:
-			sendMsg(bot, update, "Последняя игра серии была завершена.\nНачни новую командой /gamestart или просоединись к существующей - /gamejoin")
+			sendMsg(bot, update, "Последняя игра серии была завершена.\nСоздай новую командой /gamecreate или просоединись к существующей - /gamejoin")
 			return
 		except GameWasNotStartError:
 			sendMsg(bot, update, "Игра найдена, но её создатель ещё не решился её начать")
@@ -91,6 +91,24 @@ def joinGame(game, bot, update, args):
 @general
 def getGameSettings(game, bot, update):
 	response = game.getGameSettings()
+	return sendMsg(bot, update, response)
+
+
+@general
+def setGameSettings(game, bot, update, args):
+	if not args or len(args) != 3:
+		sendMsg(bot, update, "Задай настройки в правильном формате!\nПравильный формат таков:\nНОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ")
+		return
+	try:
+		roundNumber = int(args[0])
+	except ValueError:
+		sendMsg(bot, update, "Номер раунда - число, блин.")
+		return
+	response = game.setGameSettings(
+		roundNumber=roundNumber,
+		name=args[1],
+		value=args[2]
+	)
 	return sendMsg(bot, update, response)
 
 
@@ -366,7 +384,8 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['gamelist', 'gl', 'играсписок'], getGameList, pass_args=True),
 		CommandHandler(['gamecreate', 'gc', 'играсоздать'], createGame),
 		CommandHandler(['gamesetpassword', 'gsp', 'игразадатьпароль'], setGamePassword, pass_args=True),
-		CommandHandler(['gamestart', 'gs', 'играначать'], startGame),
+		CommandHandler(['gameset', 'gs', 'игранастроить'], setGameSettings, pass_args=True),
+		CommandHandler(['gamestart', 'gstart', 'играначать'], startGame),
 		CommandHandler(['gamejoin', 'gj', 'играприсоединиться'], joinGame, pass_args=True),
 		CommandHandler(['gamesettings', 'gst', 'игранастройки'], getGameSettings),
 		CommandHandler(['seriesjoin', 'sj', 'серияприсоединиться'], joinSeries, pass_args=True),
