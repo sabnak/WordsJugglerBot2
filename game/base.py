@@ -191,7 +191,7 @@ class Base_Game:
 		return response
 
 	def startGame(self):
-		# TODO: Дробавить проверку на владельца игры
+		# TODO: Добавить проверку на владельца игры
 		self._refreshGameState(notStartedGamesIsAllowed=True, autoJoin=False)
 		if self._gameState['status'] == Game.STATUS_IN_PROGRESS:
 			return "Зачем?.. Игра уже начата. Чего ж тебе ещё надо-то?"
