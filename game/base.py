@@ -1,7 +1,8 @@
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from libs.dbAdapter import DB
 import random
 from collections import OrderedDict
-from libs.coll import bestOfMultipleSmart, md5, Config
+from libs.coll import bestOfMultipleSmart, md5, Config, buildMenu
 import re
 from libs.coll import splitList
 from game.player import Player
@@ -49,7 +50,7 @@ class Base_Game:
 		self.game = Game()
 
 	def _refreshPlayerState(self, newPlayer=False):
-		telegram_id = self.update.message.chat.id
+		telegram_id = self.update.effective_user.id
 		logging.info("Refreshing player telegram_id %s" % str(telegram_id))
 		if self._playerState and not telegram_id:
 			telegram_id = self._playerState['telegram_id']
@@ -185,7 +186,7 @@ class Base_Game:
 			return "Ииииигра началась! Теперь людишки могут к ней присоединяться"
 		return "Не могу начать игру. Может у тебя недостаточно прав? Игру могут начинать только админы"
 
-	def setGameSettings(self, roundNumber, name, value):
+	def setGameSettings(self, roundNumber, name, value, addButtons=True):
 		self._refreshGameState(checkGameStatus=False)
 		if self._gameState['creator_id'] != self._playerState['id']:
 			return "Э! Куда лезешь! Только создатель игры может изменить её настройки."
@@ -204,38 +205,53 @@ class Base_Game:
 			""" % (name, value, type(currentValue).__name__)
 		self._gameState['settings'] = json.dumps(dict(round=self._gameSettings))
 		self.game.updateSettings(**self._gameState)
+		if addButtons:
+			buttonList = self._buildSettingsButton(roundNumber, name, self._gameSettings[roundNumber][name])
+			return buttonList
 		return "Я очень успешно установил настройку <b>%s</b> = <b>%s</b> для раунда <b>№%d</b>" % (name, str(value), roundNumber)
 
 	def getGameSettings(self):
 		self._refreshGameState(checkGameStatus=False)
-		return "\n".join([
+
+		rm = []
+
+		for roundNumber, settings in self._gameSettings.items():
+			rm.append("Раунд <b>%d</b>" % roundNumber)
+			for optionName, optionValue in settings.items():
+				buttonList = self._buildSettingsButton(roundNumber, optionName, optionValue)
+				if not buttonList:
+					continue
+				rm.append(buttonList)
+
+		response = [
 			"Серия ID %d. Игра ID %d" % (self._seriesState['id'], self._gameState['game_id']),
 			"Дата создания: %s" % self._gameState['createDate'].strftime('%Y-%m-%d %H:%M:%S'),
 			"Статус: %s" % self._gameState['status'],
 			"Пароль: %s " % ("да" if self._gameState['password'] else "нет"),
 			"<pre> </pre>",
-			"Список параметров",
-			"Настройки раундов:",
-			"\n ".join(
-				[
-					"<b>Раунд №%s</b>\n%s" % (
-						number,
-						"\n ".join(
-							[
-								"%s: %s" % (
-									name,
-									value
-								) for name, value in settings.items()
-							]
-						)
-					) for number, settings in self._gameSettings.items()
-				]
-			),
-			"<pre> </pre>",
 			"Для задания пароля используй \"/gameset password ПАРОЛЬ\"",
 			"Для изменения других настроек используй\n \"/gameset НОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ\"",
-			"Для запуска игры используй \"/gamestart\""
-		])
+			"Для запуска игры используй \"/gamestart\"",
+			"Список параметров",
+		]
+
+		response += rm
+		return response
+
+	@staticmethod
+	def _buildSettingsButton(roundNumber, name, value):
+		if not isinstance(value, (float, int)):
+			return None
+		newOptionValueInc = value + 1
+		newOptionValueDec = value - 1
+		buttonList = [
+			InlineKeyboardButton(" +1 ", callback_data="%d %s %d" % (roundNumber, name, newOptionValueInc)),
+			InlineKeyboardButton(" -1 ", callback_data="%d %s %d" % (roundNumber, name, newOptionValueDec)),
+		]
+		return dict(
+			msg="%s %s" % (name, value),
+			buttons=InlineKeyboardMarkup(buildMenu(buttonList, nCols=2))
+		)
 
 	def setGamePassword(self, password):
 		self._refreshGameState()

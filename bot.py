@@ -1,4 +1,5 @@
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
+from telegram import ReplyKeyboardRemove
 import logging
 from game.typeA import Game
 from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, GameAccessDeniedError, \
@@ -110,6 +111,24 @@ def setGameSettings(game, bot, update, args):
 		value=args[2]
 	)
 	return sendMsg(bot, update, response)
+
+
+@general
+def setGameSettingsButton(game, bot, update):
+	query = update.callback_query
+	queryArgs = query.data.split(" ")
+	response = game.setGameSettings(
+		roundNumber=int(queryArgs[0]),
+		name=queryArgs[1],
+		value=queryArgs[2]
+	)
+	bot.edit_message_text(
+		text=response['msg'],
+		chat_id=query.message.chat_id,
+		message_id=query.message.message_id,
+		parse_mode="html",
+		reply_markup=response['buttons']
+	)
 
 
 @general
@@ -371,10 +390,28 @@ def getMyVotes(game, bot, update):
 
 
 def sendMsg(bot, update, msg):
-	msg = re.sub(r"(?<=\n)[\s]+", "", msg) if msg else "Мне нечего тебе сказать, чёрт возьми!"
-	bot.send_message(chat_id=update.message.chat_id, text=msg, parse_mode="html")
+	msgList = [msg] if isinstance(msg, str) else msg
+	bufferedMsg = []
+	for msg in msgList:
+		if isinstance(msg, dict):
+			if bufferedMsg:
+				_sendMsg(bot=bot, update=update, msg=bufferedMsg)
+				bufferedMsg = []
+			if 'buttons' in msg:
+				bot.send_message(chat_id=update.message.chat_id, text=msg['msg'], parse_mode="html", reply_markup=msg['buttons'])
+		else:
+			bufferedMsg.append(msg)
+	if bufferedMsg:
+		_sendMsg(bot=bot, update=update, msg=bufferedMsg)
 
 
+def _sendMsg(bot, update, msg, **kwargs):
+	# reply_markup = ReplyKeyboardRemove()
+	# bot.send_message(chat_id=update.message.chat_id, text="I'm back.", reply_markup=reply_markup)
+	if isinstance(msg, list):
+		msg = "\n".join(msg)
+	msgText = re.sub(r"(?<=\n)[\s]+", "", msg) if msg else "Мне нечего тебе сказать, чёрт возьми!"
+	bot.send_message(chat_id=update.message.chat_id, text=msgText, parse_mode="html", **kwargs)
 
 [
 	dispatcher.add_handler(handler) for handler in [
@@ -388,6 +425,7 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['gamestart', 'gstart', 'играначать'], startGame),
 		CommandHandler(['gamejoin', 'gj', 'играприсоединиться'], joinGame, pass_args=True),
 		CommandHandler(['gamesettings', 'gst', 'игранастройки'], getGameSettings),
+		CallbackQueryHandler(setGameSettingsButton),
 		CommandHandler(['seriesjoin', 'sj', 'серияприсоединиться'], joinSeries, pass_args=True),
 		CommandHandler(['serieslist', 'sl', 'серияспиок'], getSeriesList),
 		CommandHandler(['mywordsbygame', 'wg', 'моисловаигра'], showMyWordsPerGame, pass_args=True),

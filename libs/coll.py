@@ -58,6 +58,15 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
 		pass
 
 
+def buildMenu(buttons, nCols, headerButtons=None, footerButtons=None):
+	menu = [buttons[i:i + nCols] for i in range(0, len(buttons), nCols)]
+	if headerButtons:
+		menu.insert(0, headerButtons)
+	if footerButtons:
+		menu.append(footerButtons)
+	return menu
+
+
 def parseStringArgs(string, argsList):
 	"""
 	Pars string into command line arguments
