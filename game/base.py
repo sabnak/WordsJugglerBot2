@@ -83,8 +83,7 @@ class Base_Game:
 		if not self._gameState:
 			raise GameWasNotFoundError
 
-		if not self._isPlayerHasAccessToGame(self._gameState['id'], password):
-			raise GameAccessDeniedError
+		self._isPlayerHasAccessToGame(self._gameState['id'], password)
 
 		self._gameState['round'] = Round.getLast(game_id=self._gameState['game_id'])
 		self._gameState['roundStatus'] = self._gameState['round']['status']
@@ -188,13 +187,18 @@ class Base_Game:
 
 	def setGameSettings(self, roundNumber, name, value, addButtons=True):
 		self._refreshGameState(checkGameStatus=False)
+
 		if self._gameState['creator_id'] != self._playerState['id']:
 			return "Э! Куда лезешь! Только создатель игры может изменить её настройки."
+
 		if roundNumber not in self._gameSettings:
 			return "Кажется, в игре нет настроек для раунда <b>№%d</b>. Ты точно всё делаешь правильно, дорогуша?" % roundNumber
+
 		if name not in self._gameSettings[roundNumber]:
 			return "Ой-вэй, куда ты тычешь? В раунде <b>№%d</b> нет настройки для <b>%s</b>." % (roundNumber, name)
+
 		currentValue = self._gameSettings[roundNumber][name]
+
 		try:
 			self._gameSettings[roundNumber][name] = type(currentValue)(value)
 		except TypeError:
@@ -203,25 +207,37 @@ class Base_Game:
 				<b>%s</b> совсем не подходит.
 				Попробуй передать что-то похожее на тип <b>%s</b>
 			""" % (name, value, type(currentValue).__name__)
+
 		self._gameState['settings'] = json.dumps(dict(round=self._gameSettings))
+
 		self.game.updateSettings(**self._gameState)
+
 		if addButtons:
 			buttonList = self._buildSettingsButton(roundNumber, name, self._gameSettings[roundNumber][name])
 			return buttonList
+
 		return "Я очень успешно установил настройку <b>%s</b> = <b>%s</b> для раунда <b>№%d</b>" % (name, str(value), roundNumber)
 
-	def getGameSettings(self):
+	def getGameSettingsButtons(self):
+
 		self._refreshGameState(checkGameStatus=False)
 
-		rm = []
+		if self._gameState['creator_id'] != self._playerState['id']:
+			return "Э! Куда лезешь! Только создатель игры может изменить её настройки."
+
+		response = []
 
 		for roundNumber, settings in self._gameSettings.items():
-			rm.append("Раунд <b>%d</b>" % roundNumber)
+			response.append("Раунд <b>%d</b>" % roundNumber)
 			for optionName, optionValue in settings.items():
 				buttonList = self._buildSettingsButton(roundNumber, optionName, optionValue)
 				if not buttonList:
 					continue
-				rm.append(buttonList)
+				response.append(buttonList)
+		return response
+
+	def getGameSettings(self):
+		self._refreshGameState(checkGameStatus=False)
 
 		response = [
 			"Серия ID %d. Игра ID %d" % (self._seriesState['id'], self._gameState['game_id']),
@@ -229,13 +245,31 @@ class Base_Game:
 			"Статус: %s" % self._gameState['status'],
 			"Пароль: %s " % ("да" if self._gameState['password'] else "нет"),
 			"<pre> </pre>",
-			"Для задания пароля используй \"/gameset password ПАРОЛЬ\"",
-			"Для изменения других настроек используй\n \"/gameset НОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ\"",
-			"Для запуска игры используй \"/gamestart\"",
-			"Список параметров",
+			"Настройки:",
+			"\n ".join(
+				[
+					"<b>Раунд №%s</b>\n%s" % (
+						number,
+						"\n ".join(
+							[
+								"%s: %s" % (
+									name,
+									value
+								) for name, value in settings.items()
+							]
+						)
+					) for number, settings in self._gameSettings.items()
+				]
+			),
 		]
 
-		response += rm
+		if self._gameState['creator_id'] != self._playerState['id']:
+			response += [
+				"Для задания пароля используй \"/gameset password ПАРОЛЬ\"",
+				"Для изменения других настроек используй\n \"/gameset НОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ\"",
+				"Для запуска игры используй \"/gamestart\"",
+			]
+
 		return response
 
 	@staticmethod
@@ -261,34 +295,22 @@ class Base_Game:
 			return "Пароль успешно обновлён. Скорее расскажи его всем!"
 		return "Хе-хе. Похоже, у тебя не хватает прав для задания пароля для игры!"
 
-	# def _createGameAutomatically(self):
-	# 	if not self._seriesState['settings']['autoCreateGames']:
-	# 		return False
-	# 	logging.info("Creating game automatically")
-	# 	self._createGame(status=Game.STATUS_IN_PROGRESS, role=Game.PLAYER_ROLE_MEMBER, activeGames=1)
-	# 	newGame = Game.getPlayerLastGame(player_id=self._playerState['id'], series_id=self._seriesState['id'])
-	# 	if not newGame:
-	# 		return False
-	# 	if newGame['status'] != Game.STATUS_IN_PROGRESS:
-	# 		raise GameAutoCreatingFailedError
-	# 	else:
-	# 		return True
-
 	def joinGame(self, game_id=None, password=None):
 		if password:
 			password = self._generatePassword(password)
 		self._refreshSeriesState()
 		if not game_id:
-			game = Game.getLastGameInSeries(series_id=self._seriesState['id'])
-			if not game:
-				raise GameWasNotCreateError
+			game = Game.getPlayerLastGame(series_id=self._seriesState['id'], player_id=self._playerState['id'])
+			if not game or game['status'] == Base_Game.STATUS_ENDED:
+				game = Game.getLastGameInSeries(series_id=self._seriesState['id'])
+				if not game:
+					raise GameWasNotCreateError
 		else:
 			game = Game.get(game_id=game_id)
 			if not game:
 				raise GameWasNotCreateError
 
-		if not self._isPlayerHasAccessToGame(game['id'], password):
-			raise GameAccessDeniedError
+		self._isPlayerHasAccessToGame(game['id'], password)
 
 		if self._playerState['game_id'] != game['id']:
 			Player.joinGame(
@@ -366,7 +388,13 @@ class Base_Game:
 	def _isPlayerHasAccessToGame(self, game_id, password=None):
 		game = Game.get(game_id=game_id)
 		if not game_id:
-			return False
+			raise GameAccessDeniedError
+
+		if game['status'] == Base_Game.STATUS_PREPARATION and self._playerState['id'] != game['creator_id']:
+			print(self._playerState)
+			print(game)
+			raise GameWasNotStartError
+
 		if not game['password']:
 			return True
 
@@ -378,7 +406,7 @@ class Base_Game:
 		if game['password'] == password:
 			return True
 
-		return False
+		raise GameAccessDeniedError
 
 	@staticmethod
 	def getSeriesList():
@@ -483,7 +511,12 @@ class Base_Game:
 		for groupNumber, group in preparedGroups.items():
 			winnerWord, stats = self._start(group['words'], group['weights'])
 			stats['players'] = statsByPlayer
-			winners.append(wordsByWord[winnerWord]['player_id'])
+			winners.append(
+				dict(
+					player_id=wordsByWord[winnerWord]['player_id'],
+					word_id=wordsByWord[winnerWord]['word_id']
+				)
+			)
 			responseList += self._getPrettyGroupResultsList(stats, winnerWord, groupNumber, **self._gameState['query'])
 			Log.save(
 				data=json.dumps(stats),
@@ -495,7 +528,12 @@ class Base_Game:
 
 		Round.updateRoundStatus(status=Round.STATUS_ENDED, **self._gameState['query'])
 		if self._gameState['roundNumber'] + 1 not in self._roundSettings:
-			self.game.update(status=Base_Game.STATUS_ENDED, winner_id=winners[0] if len(winners) == 1 else None, **self._gameState['query'])
+			self.game.update(
+				status=Base_Game.STATUS_ENDED,
+				winner_id=winners[0]['player_id'] if len(winners) == 1 else None,
+				winnerWord_id=winners[0]['word_id'] if len(winners) == 1 else None,
+				**self._gameState['query']
+			)
 
 		return "\n".join(responseList)
 
@@ -619,8 +657,8 @@ class Base_Game:
 		game['lastRoundPlayersPlain'] = "\n".join(["%s: %s" % (p, str(w)) for p, w in game['lastRoundPlayers'].items()]) if game['lastRoundPlayers'] else ""
 		return game
 
-	@staticmethod
-	def getList(limit=None):
+	def getList(self, limit=None):
+		self._refreshSeriesState()
 		if not limit:
 			limit = 100
 		gamesList = DB.getList("""
@@ -628,19 +666,17 @@ class Base_Game:
 				game.id, 
 				game.createDate, 
 				game.status, 
-				name, 
-				word,
-				LENGTH(game.id) length_id,
-				LENGTH(game.createDate) length_createDate,
-				LENGTH(game.status) length_status,
-				LENGTH(name) length_name,
-				LENGTH(word) length_word
-			FROM game 
-			JOIN player ON (player.id=game.winner_id)
-			JOIN word ON (word.player_id=player.id AND word.game_id = game.id)
-			ORDER BY createDate DESC 
+				p1.name winner_name,
+				p2.name creator_name,
+				word
+			FROM game
+			LEFT JOIN player p1 ON (p1.id=game.winner_id)
+			JOIN player p2 ON (p2.id=game.creator_id)
+			LEFT JOIN word ON (word.id=game.winner_id)
+			WHERE game.series_id = %d
+			ORDER BY createDate DESC
 			LIMIT %d
-		""" % limit)
+		""" % (self._seriesState['id'], limit))
 		if not gamesList:
 			return "Возмутительно! До сих пор не было сыграно ни одной игры!"
 		responseList = ["Список последних %d игр" % limit]
@@ -650,8 +686,9 @@ class Base_Game:
 				game['createDate'].strftime('%Y-%m-%d %H:%M:%S'),
 				game['status']
 			))
-			responseList.append(" <b>%s</b> (<b>%s</b>)" % (game['word'], game['name']))
-			responseList.append("******")
+			responseList.append("Автор: <b>%s</b>" % game['creator_name'])
+			responseList.append("Победитель: <b>%s (%s)</b>" % (game['winner_name'], game['word']))
+			responseList.append("<pre></pre>")
 		return "\n".join(responseList)
 
 	def getLastGameLog(self, status=STATUS_ENDED):

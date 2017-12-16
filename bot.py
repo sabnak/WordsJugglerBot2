@@ -97,14 +97,20 @@ def getGameSettings(game, bot, update):
 
 @general
 def setGameSettings(game, bot, update, args):
-	if not args or len(args) != 3:
+	if not args:
+		response = game.getGameSettingsButtons()
+		return sendMsg(bot, update, response)
+
+	if len(args) != 3:
 		sendMsg(bot, update, "Задай настройки в правильном формате!\nПравильный формат таков:\nНОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ")
 		return
+
 	try:
 		roundNumber = int(args[0])
 	except ValueError:
 		sendMsg(bot, update, "Номер раунда - число, блин.")
 		return
+
 	response = game.setGameSettings(
 		roundNumber=roundNumber,
 		name=args[1],

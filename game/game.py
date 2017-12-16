@@ -52,7 +52,7 @@ class Game:
 			SELECT game.*
 			FROM player
 			JOIN game ON (game.id = player.game_id)
-			WHERE player_id = %(player_id)s AND player.series_id = %(series_id)s
+			WHERE player.id = %(player_id)s AND player.series_id = %(series_id)s
 		""", params, jsonFields=['settings'])
 
 	@staticmethod
@@ -126,4 +126,8 @@ class Game:
 
 	@staticmethod
 	def update(**params):
-		return DB.execute("UPDATE game SET winner_id = %(winner_id)s, status = %(status)s WHERE id = %(game_id)s", params)
+		return DB.execute("""
+			UPDATE game
+			SET winner_id = %(winner_id)s, winnerWord_id=%(winnerWord_id)s, status = %(status)s
+			WHERE id = %(game_id)s
+		""", params)
