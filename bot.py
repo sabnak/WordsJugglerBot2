@@ -31,6 +31,7 @@ def general(func):
 			sendMsg(bot, update, "О-хо-хо! Ты до сих пор не поучаствовал ни в одной игре!\nСоздай новую командой /gamecreate или просоединись к существующей - /gamejoin")
 			return
 		except GameWasNotCreateError:
+			sendMsg(bot, update, "Последняя игра серии была завершена.\nСоздай новую командой /gamecreate или просоединись к существующей - /gamejoin")
 			return
 		except GameWasNotStartError:
 			sendMsg(bot, update, "Игра найдена, но её создатель ещё не решился её начать")
