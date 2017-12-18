@@ -1,4 +1,5 @@
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
+from telegram import ReplyKeyboardRemove
 import logging
 from game.typeA import Game
 from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, GameAccessDeniedError, \
@@ -30,7 +31,6 @@ def general(func):
 			sendMsg(bot, update, "О-хо-хо! Ты до сих пор не поучаствовал ни в одной игре!\nСоздай новую командой /gamecreate или просоединись к существующей - /gamejoin")
 			return
 		except GameWasNotCreateError:
-			sendMsg(bot, update, "Последняя игра серии была завершена.\nНачни новую командой /gamestart или просоединись к существующей - /gamejoin")
 			return
 		except GameWasNotStartError:
 			sendMsg(bot, update, "Игра найдена, но её создатель ещё не решился её начать")
@@ -47,6 +47,9 @@ def general(func):
 		except GameIsNotReadyError:
 			sendMsg(bot, update, "Создатель игры ещё не настроил её правила. Пни его!")
 			return
+		except Exception:
+			sendMsg(bot, update, "Ааааа! Как больно, БОЛЬНО! Агония! Я страдаю. Зачем ты так делаешь?! Не детай так, прошу!")
+			raise
 
 	return wrapped
 
@@ -81,7 +84,7 @@ def joinGame(game, bot, update, args):
 	except (ValueError, IndexError):
 		sendMsg(bot, update, "ID серии - число, блин.")
 		return
-	response = game.joinGame(game_id, password)
+	response = game.joinGame(game_id, password)[1]
 	return sendMsg(bot, update, response)
 
 
@@ -89,6 +92,48 @@ def joinGame(game, bot, update, args):
 def getGameSettings(game, bot, update):
 	response = game.getGameSettings()
 	return sendMsg(bot, update, response)
+
+
+@general
+def setGameSettings(game, bot, update, args):
+	if not args:
+		response = game.getGameSettingsButtons()
+		return sendMsg(bot, update, response)
+
+	if len(args) != 3:
+		sendMsg(bot, update, "Задай настройки в правильном формате!\nПравильный формат таков:\nНОМЕР_РАУНДА ПАРАМЕТР ЗНАЧЕНИЕ")
+		return
+
+	try:
+		roundNumber = int(args[0])
+	except ValueError:
+		sendMsg(bot, update, "Номер раунда - число, блин.")
+		return
+
+	response = game.setGameSettings(
+		roundNumber=roundNumber,
+		name=args[1],
+		value=args[2]
+	)
+	return sendMsg(bot, update, response)
+
+
+@general
+def setGameSettingsButton(game, bot, update):
+	query = update.callback_query
+	queryArgs = query.data.split(" ")
+	response = game.setGameSettings(
+		roundNumber=int(queryArgs[0]),
+		name=queryArgs[1],
+		value=queryArgs[2]
+	)
+	bot.edit_message_text(
+		text=response['msg'],
+		chat_id=query.message.chat_id,
+		message_id=query.message.message_id,
+		parse_mode="html",
+		reply_markup=response['buttons']
+	)
 
 
 @general
@@ -350,10 +395,28 @@ def getMyVotes(game, bot, update):
 
 
 def sendMsg(bot, update, msg):
-	msg = re.sub(r"(?<=\n)[\s]+", "", msg) if msg else "Мне нечего тебе сказать, чёрт возьми!"
-	bot.send_message(chat_id=update.message.chat_id, text=msg, parse_mode="html")
+	msgList = [msg] if isinstance(msg, str) else msg
+	bufferedMsg = []
+	for msg in msgList:
+		if isinstance(msg, dict):
+			if bufferedMsg:
+				_sendMsg(bot=bot, update=update, msg=bufferedMsg)
+				bufferedMsg = []
+			if 'buttons' in msg:
+				bot.send_message(chat_id=update.message.chat_id, text=msg['msg'], parse_mode="html", reply_markup=msg['buttons'])
+		else:
+			bufferedMsg.append(msg)
+	if bufferedMsg:
+		_sendMsg(bot=bot, update=update, msg=bufferedMsg)
 
 
+def _sendMsg(bot, update, msg, **kwargs):
+	# reply_markup = ReplyKeyboardRemove()
+	# bot.send_message(chat_id=update.message.chat_id, text="I'm back.", reply_markup=reply_markup)
+	if isinstance(msg, list):
+		msg = "\n".join(msg)
+	msgText = re.sub(r"(?<=\n)[\s]+", "", msg) if msg else "Мне нечего тебе сказать, чёрт возьми!"
+	bot.send_message(chat_id=update.message.chat_id, text=msgText, parse_mode="html", **kwargs)
 
 [
 	dispatcher.add_handler(handler) for handler in [
@@ -363,9 +426,11 @@ def sendMsg(bot, update, msg):
 		CommandHandler(['gamelist', 'gl', 'играсписок'], getGameList, pass_args=True),
 		CommandHandler(['gamecreate', 'gc', 'играсоздать'], createGame),
 		CommandHandler(['gamesetpassword', 'gsp', 'игразадатьпароль'], setGamePassword, pass_args=True),
-		CommandHandler(['gamestart', 'gs', 'играначать'], startGame),
+		CommandHandler(['gameset', 'gs', 'игранастроить'], setGameSettings, pass_args=True),
+		CommandHandler(['gamestart', 'gstart', 'играначать'], startGame),
 		CommandHandler(['gamejoin', 'gj', 'играприсоединиться'], joinGame, pass_args=True),
 		CommandHandler(['gamesettings', 'gst', 'игранастройки'], getGameSettings),
+		CallbackQueryHandler(setGameSettingsButton),
 		CommandHandler(['seriesjoin', 'sj', 'серияприсоединиться'], joinSeries, pass_args=True),
 		CommandHandler(['serieslist', 'sl', 'серияспиок'], getSeriesList),
 		CommandHandler(['mywordsbygame', 'wg', 'моисловаигра'], showMyWordsPerGame, pass_args=True),

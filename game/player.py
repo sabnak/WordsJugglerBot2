@@ -54,7 +54,7 @@ class Player:
 		""", params)
 		DB.execute("""
 			UPDATE player
-			SET	series_id = %(series_id)s
+			SET	series_id = %(series_id)s, game_id = 0
 			WHERE id = %(player_id)s
 		""", params)
 
