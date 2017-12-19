@@ -61,7 +61,7 @@ class Base_Game:
 			Player.add(self.update)
 			self._refreshPlayerState(True)
 
-	def _refreshGameState(self,	password=None, game_id=None, checkGameStatus=True):
+	def _refreshGameState(self,	checkGameStatus=True):
 		"""
 		Updates game state (game_id, round_id etc.)
 		Must be calls in every public method
@@ -70,20 +70,12 @@ class Base_Game:
 
 		self._refreshSeriesState()
 
-		if game_id:
-			lastPlayerGame = Game.get(game_id=game_id)
-			if not lastPlayerGame:
-				raise GameWasNotFoundError
-			self._gameState = lastPlayerGame
-		else:
-			self._gameState = self.joinGame()[0]
-
-		self._gameState['game_id'] = self._gameState['id']
+		self._gameState = self.joinGame()[0]
 
 		if not self._gameState:
 			raise GameWasNotFoundError
 
-		self._isPlayerHasAccessToGame(self._gameState['id'], password)
+		self._gameState['game_id'] = self._gameState['id']
 
 		self._gameState['round'] = Round.getLast(game_id=self._gameState['game_id'])
 		self._gameState['roundStatus'] = self._gameState['round']['status']
@@ -326,7 +318,7 @@ class Base_Game:
 					password=password
 				)
 
-		self._refreshGameState(password=password, game_id=game['id'], checkGameStatus=False)
+		# self._refreshGameState(password=password, game_id=game['id'], checkGameStatus=False)
 
 		return game, "Иииха! Ты присовокупился к игре с ID %d серии игр с ID %d" % (game['id'], self._seriesState['id'])
 
@@ -391,8 +383,6 @@ class Base_Game:
 			raise GameAccessDeniedError
 
 		if game['status'] == Base_Game.STATUS_PREPARATION and self._playerState['id'] != game['creator_id']:
-			print(self._playerState)
-			print(game)
 			raise GameWasNotStartError
 
 		if not game['password']:
