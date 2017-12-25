@@ -676,6 +676,7 @@ class Base_Game:
 				game['createDate'].strftime('%Y-%m-%d %H:%M:%S'),
 				game['status']
 			))
+			responseList.append("Лог игры: /gr_%d" % game['id'])
 			responseList.append("Автор: <b>%s</b>" % game['creator_name'])
 			responseList.append("Победитель: <b>%s (%s)</b>" % (game['winner_name'], game['word']))
 			responseList.append("<pre></pre>")

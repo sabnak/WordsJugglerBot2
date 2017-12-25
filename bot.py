@@ -176,11 +176,6 @@ def catchWord(game, bot, update):
 
 
 @general
-def iAmSoStupid(game, bot, update):
-	sendMsg(bot, update, "Говори на понятном мне языке. Используй понятные слова.\nВот тебе инструкция: /help")
-
-
-@general
 def showMyWordsPerGame(game, bot, update, args):
 	game_id = int(args[0]) if args else None
 	wordsList = game.getPlayerWordsByGame()
@@ -395,6 +390,20 @@ def getMyVotes(game, bot, update):
 	sendMsg(bot, update, response)
 
 
+@general
+def iAmSoStupid(searcher, bot, update):
+	text = update.message.text
+	failMsg = "Говори на понятном мне языке. Используй понятные слова.\nВот тебе инструкция: /help"
+	if text and "_" in text:
+		params = text.split("_")
+		if len(params) != 2:
+			sendMsg(bot, update, failMsg)
+			return
+		if params[0] == "/gr":
+			return getGameResults(bot, update, [params[1]])
+	sendMsg(bot, update, failMsg)
+
+
 def sendMsg(bot, update, msg):
 	msgList = [msg] if isinstance(msg, str) else msg
 	bufferedMsg = []
@@ -455,6 +464,7 @@ def _sendMsg(bot, update, msg, **kwargs):
 
 def getPlainCommandsList():
 	return re.sub(r"/([A-z]+[\s]+)[^-]+", r"\1", commandsList)
+
 
 commandsList = """
 /candidates /c /к /кандидаты - посмотреть список словцов-кандидатов
