@@ -937,6 +937,8 @@ class Base_Game:
 		for randomPlayer in self._RANDOM_PLAYER:
 			if randomPlayersProcessed >= self._roundSettings['randomPlayers']:
 				break
+			if not Player.get(telegram_id=randomPlayer['id']):
+				Player.add(telegram_id=randomPlayer['id'], name=randomPlayer['first_name'])
 			randomPlayersProcessed += 1
 			if Word.getListByRoundId(telegram_id=randomPlayer['id'], **self._gameState['query']):
 				continue

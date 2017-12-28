@@ -132,13 +132,14 @@ class Player:
 		""", params)
 
 	@staticmethod
-	def add(update):
-		name = Player._buildPlayerName(update.message.chat)
+	def add(update=None, name=None, telegram_id=None):
+		name = Player._buildPlayerName(update.message.chat) if not name else name
+		telegram_id = update.message.chat.id if not telegram_id else telegram_id
 		player_id = DB.execute(
 			"""
 				INSERT INTO player 
 				SET name = %(name)s, telegram_id = %(telegram_id)s
-			""", dict(name=name, telegram_id=update.message.chat.id)
+			""", dict(name=name, telegram_id=telegram_id)
 		).lastrowid
 		logging.info("Player '%s' was added. ID: %s" % (name, player_id))
 		return player_id
