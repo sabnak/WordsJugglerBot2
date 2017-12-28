@@ -25,10 +25,16 @@ class Base_Game:
 		"ushakov": r"./dictionaries/ushakov_reb.txt"
 	}
 
-	_RANDOM_PLAYER = {
-		'id': -1,
-		'first_name': "Жорж"
-	}
+	_RANDOM_PLAYER = [
+		{
+			'id': -1,
+			'first_name': "Жорж"
+		},
+		{
+			'id': -2,
+			'first_name': "Жоржетта"
+		}
+	]
 
 	_GENERATED_GAME_HARD_WORDS_LIMIT = 100
 	_MAX_OPENED_GAMES_PER_PLAYER = 5
@@ -48,6 +54,7 @@ class Base_Game:
 		self.update = update
 		self._refreshPlayerState()
 		self.game = Game()
+		self._RANDOM_PLAYER_IDS = [x['id'] for x in self._RANDOM_PLAYER]
 
 	def _refreshPlayerState(self, newPlayer=False):
 		telegram_id = self.update.effective_user.id
@@ -464,7 +471,7 @@ class Base_Game:
 					statsByPlayer[info['player_id']]['words'][info['word']] = dict()
 				if info['electorPlayer_id']:
 					statsByPlayer[info['player_id']]['words'][info['word']][info['electorPlayer_id']] = dict(name=info['electorName'], weight=info['weight'])
-				if info['telegram_id'] != self._RANDOM_PLAYER['id']:
+				if info['telegram_id'] not in self._RANDOM_PLAYER_IDS:
 					playerSpentWeight = Vote.getPlayerSumOfWeightPerRound(player_id=info['player_id'], **self._gameState['query'])
 					if playerSpentWeight < self._roundSettings['maxWeightPerRound']:
 						lazyPlayers[info['player_id']] = dict(name=info['name'], spentWeight=playerSpentWeight)
@@ -786,8 +793,8 @@ class Base_Game:
 
 		for wordInfo in fullInfoWordsList:
 
-			if wordInfo['telegram_id'] == Base_Game._RANDOM_PLAYER['id'] and Base_Game._RANDOM_PLAYER['id'] not in randomPlayersList:
-				randomPlayersList.append(Base_Game._RANDOM_PLAYER['id'])
+			if wordInfo['telegram_id'] in self._RANDOM_PLAYER_IDS and wordInfo['telegram_id'] not in randomPlayersList:
+				randomPlayersList.append(wordInfo['telegram_id'])
 			if wordInfo['player_id'] not in wordsByPlayer:
 				wordsByPlayer[wordInfo['player_id']] = dict(
 					words=[],
@@ -797,7 +804,7 @@ class Base_Game:
 					player_id=wordInfo['player_id'],
 				)
 			wordsByPlayer[wordInfo['player_id']]['words'].append((wordInfo['id'], wordInfo['word'], wordInfo['player_id']))
-		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] != self._RANDOM_PLAYER['id']]
+		unreadyPlayers = [p['name'] for p in wordsByPlayer.values() if not p['isReady'] and p['telegram_id'] not in self._RANDOM_PLAYER_IDS]
 
 		if len(wordsByPlayer) < self._roundSettings['minPlayers'] + len(randomPlayersList):
 			return "Что-то маловато народца набралось для игры (%d/%d). Зови друзей" % (len(wordsByPlayer) - len(randomPlayersList), self._roundSettings['minPlayers'])
@@ -922,26 +929,34 @@ class Base_Game:
 	# def _saveWordIntoGr
 
 	def _addRandomWord(self):
-		if 'randomWordsLimit' not in self._roundSettings or not self._roundSettings['randomWordsLimit'] or \
-				Word.getListByRoundId(telegram_id=Base_Game._RANDOM_PLAYER['id'], **self._gameState['query']):
+		if 'randomPlayers' not in self._roundSettings or not self._roundSettings['randomPlayers']:
 			return
-		randomWordsCount = 0
-		wordsAdded = 0
-		while wordsAdded <= self._roundSettings['randomWordsLimit']:
-			if randomWordsCount > 20:
+		if 'randomWordsLimit' not in self._roundSettings or not self._roundSettings['randomWordsLimit']:
+			return
+		randomPlayersProcessed = 0
+		for randomPlayer in self._RANDOM_PLAYER:
+			if randomPlayersProcessed >= self._roundSettings['randomPlayers']:
 				break
-			randomWordsCount += 1
-			word = self._getRandom("ushakov", wordMinLength=self._roundSettings['minWordsPerPlayer'])
-			if not word:
+			randomPlayersProcessed += 1
+			if Word.getListByRoundId(telegram_id=randomPlayer['id'], **self._gameState['query']):
 				continue
-			Word.add(
-				word=word,
-				player_id=Player.getId(self._RANDOM_PLAYER),
-				wordsLimit=self._roundSettings['randomWordsLimit'],
-				wordMinLength=self._roundSettings['minWordLength'],
-				**self._gameState['query']
-			)
-			wordsAdded += 1
+			randomWordsCount = 0
+			wordsAdded = 0
+			while wordsAdded <= self._roundSettings['randomWordsLimit']:
+				if randomWordsCount > 20:
+					break
+				randomWordsCount += 1
+				word = self._getRandom("ushakov", wordMinLength=self._roundSettings['minWordsPerPlayer'])
+				if not word:
+					continue
+				Word.add(
+					word=word,
+					player_id=Player.getId(randomPlayer),
+					wordsLimit=self._roundSettings['randomWordsLimit'],
+					wordMinLength=self._roundSettings['minWordLength'],
+					**self._gameState['query']
+				)
+				wordsAdded += 1
 
 	@staticmethod
 	def _generatePassword(password):

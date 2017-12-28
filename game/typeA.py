@@ -18,6 +18,7 @@ class Game(Base_Game):
 				minPlayers=3,
 				maxPlayers=20,
 				randomWordsLimit=1,
+				randomPlayers=1,
 				percentPerPoint=5,
 				groupSize=-1,  # -1 is auto size
 				fightDegree=3.0,
