@@ -1,8 +1,9 @@
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
-from telegram import ReplyKeyboardRemove
+# from telegram import ReplyKeyboardRemove
 import logging
-from game.typeA import Game
-from game.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, GameAccessDeniedError, \
+from game.type.perfectWord import Perfect_Word
+from game.type.base import Base_Game
+from game.type.base import GameWasNotStartError, GameWasNotFoundError, GameWasNotCreateError, GameAccessDeniedError, \
 	SeriesWasNotFoundError, SeriesAccessDeniedError, InvalidPasswordError, GameIsNotReadyError
 import re
 from libs.coll import Config, parseStringArgs, ArgumentParserError
@@ -20,7 +21,14 @@ _RESTRICTION_ADMINS_ONLY = False
 def general(func):
 	@wraps(func)
 	def wrapped(bot, update, *args, **kwargs):
-		game = Game(update)
+		baseGame = Base_Game(update)
+		seriesState = baseGame.getSeriesState()
+		if not seriesState or "gameType" not in seriesState['settings'] or seriesState['settings']['gameType'] == "perfectWord":
+			game = Perfect_Word(update)
+		elif seriesState['settings']['gameType'] == "gallows":
+			pass
+		else:
+			raise GameTypeWasNotFound
 		logging.info(update)
 		if _RESTRICTION_ADMINS_ONLY and str(update.effective_user.id) not in Config.get('TELEGRAM.admins'):
 			sendMsg(bot, update, "Со мной что-то делают. Отвали!")
@@ -391,7 +399,7 @@ def getMyVotes(game, bot, update):
 
 
 @general
-def iAmSoStupid(searcher, bot, update):
+def iAmSoStupid(game, bot, update):
 	text = update.message.text
 	failMsg = "Говори на понятном мне языке. Используй понятные слова.\nВот тебе инструкция: /help"
 	if text and "_" in text:
@@ -505,3 +513,7 @@ if __name__ == "__main__":
 # DELETE FROM words.groups WHERE id >= 1;
 # DELETE FROM words.player_state WHERE id >= 1;
 # INSERT INTO player SET name = "Жорж", telegram_id = -1;
+
+
+class GameTypeWasNotFound(Exception):
+	pass
